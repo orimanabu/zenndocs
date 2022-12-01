@@ -1,0 +1,23 @@
+{
+  "name": "zenndocs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/orimanabu/zenndocs.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/orimanabu/zenndocs/issues"
+  },
+  "homepage": "https://github.com/orimanabu/zenndocs#readme",
+  "dependencies": {
+    "zenn-cli": "^0.1.133"
+  }
+}
