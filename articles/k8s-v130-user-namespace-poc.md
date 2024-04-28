@@ -7,7 +7,7 @@ published: true
 ---
 
 # はじめに
-Kubernetes v1.30でBetaになったuser namespaceをFedora 40, CentOS Stream 9, Ubuntu 24.04で試してみました (本記事は、[gistに書いたメモ](https://gist.github.com/orimanabu/8fc59eccd9c8c6787314e8dabc03df8d)の改訂版です)。
+Kubernetes v1.30でBetaになったUser NamespaceをFedora 40, CentOS Stream 9, Ubuntu 24.04で試してみました (本記事は、[gistに書いたメモ](https://gist.github.com/orimanabu/8fc59eccd9c8c6787314e8dabc03df8d)の改訂版です)。
 
 - 参考資料: [Kubernetes 1.30: Beta Support For Pods With User Namespaces](https://kubernetes.io/blog/2024/04/22/userns-beta/)
 
@@ -18,14 +18,14 @@ Kubernetes v1.30でBetaになったuser namespaceをFedora 40, CentOS Stream 9, 
 
 本記事は、2024-04-27時点の情報をもとにしています。
 
-現時点では、user namespaceを試すには下記が必要になります。
+現時点では、User Namespaceを試すには下記が必要になります。
 
 - Linuxカーネル v6.3 (tmpfsのidmapマウント)
-  - CentOS Stream 9はこれよりも古いカーネルだが、必要な機能がバックポートされていると思われる (後述)
+  - CentOS Stream 9のカーネルのベースバージョンはこれよりも古いですが、User Namespace自体はうまく動いているように見えました。おそらく必要な機能がバックポートされているからだと思います ([これ](https://gitlab.com/redhat/centos-stream/src/kernel/centos-stream-9/-/commit/892da692fa5bc3aac9e6ec72303a0f194ca2b0c6)かな...)
 - crun v1.9以降 (v1.13以降が推奨)
   - runc v1.1.zは現時点では未対応
 - CRI-O v1.25以降
-  - containerd v1.7は、k8s v1.27〜v1.30のuser namespaceには未対応
+  - containerd v1.7は、k8s v1.27〜v1.30のUser Namespaceには未対応
 
 # セットアップ
 
@@ -106,7 +106,7 @@ sudo ln -s /etc/resolv.conf /run/systemd/resolve/resolv.conf
 sudo useradd kubelet
 ```
 
-デフォルト設定だと、使えるUIDは65536個です (下記出力例はFedora 40です。`ori` はインストール時に作成したユーザー名です)。
+デフォルト設定だと、使えるUIDは65536個です (下記はFedora 40での出力例です。`ori` はインストール時に作成したユーザー名です)。
 
 ```
 $ cat /etc/subuid
@@ -285,7 +285,7 @@ kubectl apply -f https://github.com/antrea-io/antrea/releases/download/v1.13.4/a
 
 ※ 最初Ciliumで検証していたのですが、Ubuntu 24.04でCiliumがうまく動かなかったため([issue](https://github.com/cilium/cilium/issues/32198))、Antreaに変えました。
 
-# user namespaceの検証
+# User Namespaceの検証
 
 [ここ](https://kubernetes.io/docs/tasks/configure-pod-container/user-namespaces/#create-pod)のサンプルを使います。
 
@@ -303,9 +303,9 @@ spec:
     image: debian
 ```
 
-`spec.hostUsers` に `false` を設定することで、Pod内のコンテナプロセスがuser namespaceの中で動きます。
+`spec.hostUsers` に `false` を設定することで、Pod内のコンテナプロセスがUser Namespaceの中で動きます。
 
-※ 余談ですがCRI-Oは、Kubernetesが正式にuser namespaceに対応する前から、独自にuser namespaceを使えるようになっていました (Pod manifestの `metadata.annotations` に `io.kubernetes.cri-o.userns-mode: "auto"` を入れておくとuser namespaceを使います)。Kubernetes側で正式にuser namespaceに対応したので、この拡張は今後はdeprecateされるのではないかと思われます。
+※ 余談ですがCRI-Oは、Kubernetesが正式にUser Namespaceに対応する前から、独自にUser Namespaceを使えるようになっていました (Pod manifestの `metadata.annotations` に `io.kubernetes.cri-o.userns-mode: "auto"` を入れておくとUser Namespaceを使います)。Kubernetes側で正式にUser Namespaceに対応したので、この拡張は今後はdeprecateされるのではないかと思われます。
 
 デプロイしたらこんな感じになります。
 
@@ -328,7 +328,7 @@ $ kubectl exec testpod -- id
 uid=0(root) gid=0(root) groups=0(root)
 ```
 
-`/proc/*/[ug]id_map` を見ると、user namespaceにおけるUIDのマッピングが確認できます。
+`/proc/*/[ug]id_map` を見ると、User NamespaceにおけるUIDのマッピングが確認できます。
 
 ```
 $ kubectl exec pod/testpod -- cat /proc/self/uid_map
@@ -337,7 +337,7 @@ $ kubectl exec pod/testpod -- cat /proc/self/uid_map
 
 コンテナ内のUID 0以降65536個のUIDが、ホスト上のUID 4980736以降の65536個にマッピングされていることがわかります。
 
-※ user namespaceを使用しない場合は、通常 `/proc/*/[ug]id_map` の2つ目のカラムが `0` になります
+※ User Namespaceを使用しない場合は、通常 `/proc/*/[ug]id_map` の2つ目のカラムが `0` になります
 
 最後に該当workerノード (`k8s-fedora-wk2`) 上で、このsleepプロセスをpsしてみます。まずホスト上でのPIDを調べます。
 
@@ -359,4 +359,4 @@ USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
 
 PID 9247のsleepは/proc/self/uid_map` で確認したUID 4980736で動いていることが確認できました。
 
-※ user namespaceを使用しない場合は、ここのPIDがコンテナプロセスのPIDと同じ (このコンテナの場合は `0`) になります。
+※ User Namespaceを使用しない場合は、ここのPIDがコンテナプロセスのPIDと同じ (このコンテナの場合は `0`) になります。
