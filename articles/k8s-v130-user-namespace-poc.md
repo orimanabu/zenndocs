@@ -1,5 +1,5 @@
 ---
-title: "Kubernetes v1.30でBetaになったUser Namespaceで遊んでみました"
+title: "Kubernetes v1.30でBetaになったUser Namespaceを動かしてみる"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["Kubernetes", "UserNamespace"]
