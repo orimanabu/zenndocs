@@ -1,0 +1,7 @@
+npx zenn init
+
+npx zenn new:article --slug 記事のスラッグ --title タイトル --type idea --emoji ✨
+
+npx zenn preview
+
+npx zenn new:article --slug k8s-v130-user-namespace-poc --title 'Kubernetes v1.30でBetaになったUser Namespaceで遊んでみました' --type tech --emoji ⎈
