@@ -7,10 +7,9 @@ published: true
 ---
 
 # はじめに
-Kubernetes v1.30でBetaになったuser namespaceをFedora 40, CentOS Stream 9, Ubuntu 24.04で試してみました。[gistに書いたメモ](https://gist.github.com/orimanabu/8fc59eccd9c8c6787314e8dabc03df8d)の改訂版です。
+Kubernetes v1.30でBetaになったuser namespaceをFedora 40, CentOS Stream 9, Ubuntu 24.04で試してみました (本記事は、[gistに書いたメモ](https://gist.github.com/orimanabu/8fc59eccd9c8c6787314e8dabc03df8d)の改訂版です)。
 
 - 参考資料: [Kubernetes 1.30: Beta Support For Pods With User Namespaces](https://kubernetes.io/blog/2024/04/22/userns-beta/)
-
 
 下記のドキュメントに沿って環境を作って検証しました。CRI-O、crunを入れて、`/etc/sub[ug]id` をちゃんと設定すれば、たぶんすんなり動くと思います。
 
