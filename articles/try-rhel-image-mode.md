@@ -58,6 +58,9 @@ Image modeを実現するための要素技術は以下です。
 
 - [rpm-ostree](https://github.com/coreos/rpm-ostree): (ostreeを構成するファイル群を、rpmパッケージを使って構成する)
 - [bootc](https://github.com/containers/bootc): (OCIコンテナイメージを使ってOSをアップデートできるようにする)
+
+  - bootcはRustで書かれています。
+
 - [bootc-image-builder](https://github.com/osbuild/bootc-image-builder): (コンテナイメージから各種プラットフォーム用のOSイメージに変換する)
 
 さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、とてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
