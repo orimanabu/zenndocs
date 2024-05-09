@@ -11,19 +11,21 @@ Red Hat Summit 2024でImage mode for RHELが発表されました。
 
 - [Experience the AI-ready OS with image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/image-mode)
 - [Introducing image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/blog/introducing-image-mode-red-hat-enterprise-linux)
-- 
+- [Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide)
 - [Image mode for Red Hat Enterprise Linux](https://developers.redhat.com/products/rhel-image-mode/overview)
 - [Announcing image mode for Red Hat Enterprise Linux](https://developers.redhat.com/articles/2024/05/07/announcing-image-mode-red-hat-enterprise-linux)
 
 Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
 
-publickey1.jpでも取り上げていただきました。
+publickey1.jpでも取り上げられました。
 
 - [コンテナイメージなのにブート可能な新技術による「Image mode for Red Hat Enterprise Linux」、Red Hatが発表。レジストリなどのコンテナ関連ツールがそのまま利用可能](https://www.publickey1.jp/blog/24/image_mode_for_red_hat_enterprise_linuxred_hat.html)
 
 「コンテナイメージなのにブート可能」... はて？ (朝ドラ風に)
 
-というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されており、そのとおりに進めるためにはサブスクリプションが必要です。個人利用目的であればDeveloper subscriptionを無料で使用できますが、そのままでは動かなかった部分もあったため、本記事では少しひねって、サブスクリプション契約が必要ないものを使いました。
+というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されていますが、そのままでは動かなかった部分もあったため、本記事では少しひねって、サブスクリプション契約が必要ないものを使いました。
+
+以下は2024年5月9日時点の検証結果です。まだもりもりと開発が続いているようなので、今後は変わるところもあるかもしれません。
 
 # 結論を最初に書いておくと...
 
@@ -37,11 +39,11 @@ publickey1.jpでも取り上げていただきました。
 
 - Image modeのコンテナイメージをOSとして起動する場合は、対象とするプラットフォーム向けに初期インストール用のイメージ変換等が必要な場合があります
 
-  - ベアメタルの場合は、Kickstartのostreeイメージ指定構文から直接コンテナイメージを指定できます
+  - ベアメタルの場合は、Kickstartの `ostreecontainer` 命令で直接コンテナイメージを指定できます
   - KVM仮想マシンの場合は、コンテナイメージからqcow2イメージに変換して、それを使ってVMを起動します
   - AWSのEC2インスタンスの場合も(以下略)
 
-- この変換作業が必要なのは、初期インストール時に一度だけです。OSとして起動した後のOSアップデートは、コンテナイメージをpullして展開して再起動するだけです
+- この変換作業が必要なのは、初期インストール時に一度だけです。OSとして起動した後のOSアップデートは、コンテナイメージを更新後push → OS上でpullして展開して再起動、するだけです
 
   - 初期設定ではsystemd timerユニットで定期的に更新チェックしているため、「OSのコンテナイメージを更新してレジストリにpushしておくと、Image modeのOSは自動的にそれをpullして適用して再起動する」という動きになります。定期チェックを停止して手動アップデートすることももちろんできます。
 
@@ -52,23 +54,23 @@ publickey1.jpでも取り上げていただきました。
 
 という感じです。
 
-「コンテナイメージとしてOSのコンテンツを配布」「複数イメージの切り替えが可能」「/usr等大部分はroマウント」といった特徴がある一方、任意のコンテナイメージをOSとして起動できるようにする魔法ではないことに留意する必要があります。また、イメージを作成する元となるバイナリは、rpmパッケージから作成するため、Image modeで起動した場合でも元となるディストリビューションと同じバイナリが動きます (例えばImage mode for RHELであれば、通常のRHELと同じカーネルやコマンドのバイナリを使います)。
+「コンテナイメージとしてOSのコンテンツを配布」「複数イメージの切り替えが可能」「/usr等はroマウント」といった特徴がある一方、任意のコンテナイメージをOSとして起動できるようにする魔法ではないことに留意する必要があります。また、イメージを作成する元となるバイナリは、rpmパッケージから作成するため、Image modeで起動した場合でも元となるディストリビューションと同じバイナリが動きます (例えばImage mode for RHELであれば、通常のRHELと同じカーネルやコマンドのバイナリを使います)。
 
 中で使っている技術要素としては、
 
-- ostree
-- rpm-ostree
-- bootc
+- [ostree](https://github.com/ostreedev/ostree): (複数のファイルシステムツリーをGitリポジトリ的に管理して切り替えられるようにする)
+- [rpm-ostree](https://github.com/coreos/rpm-ostree): (ostreeを構成するファイル群を、rpmパッケージを使って構成する)
+- [bootc](https://github.com/containers/bootc): (OCIコンテナイメージを使ってOSをアップデートできるようにする)
 
 が鍵となります。
 
-さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、とてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSに「コンテナイメージからOS起動イメージを作成する」というbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
+さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、とてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
 
 # コンテナイメージの作成
 
 OS起動およびImage modeに必要な最低限のツールを含んだイメージ(以下bootcイメージ)が用意されているので、それをベースに自分のコンテナイメージを作成します。
 
-クイックガイドではRHEL9ベースのbootcイメージをベースにしていますが、本記事ではサブスクリプション契約の必要がないFedora40ベースのbootcイメージを使いした。
+クイックガイドではRHEL9ベースのbootcイメージをベースにしていますが、本記事ではサブスクリプション契約の必要がないFedora40ベースのbootcイメージを使いました。
 
 ```
 podman pull quay.io/fedora/fedora-bootc:40
