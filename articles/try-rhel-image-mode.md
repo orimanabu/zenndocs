@@ -2,7 +2,7 @@
 title: "Image mode for RHELの中身を見てみる"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ["Image mode for RHEL", "rpm-ostree", "ostree", "bootc", "Fedora", "RHEL"]
+topics: ["rpm-ostree", "ostree", "bootc", "Fedora", "RHEL"]
 published: true
 ---
 # はじめに
