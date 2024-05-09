@@ -176,7 +176,7 @@ Podmanは実行ユーザーごとにコンテナストレージが異なるた�
 sudo podman image pull quay.io/manabu.ori/lamp-bootc:latest
 ```
 
-bootc-image-builderのコンフィグファイルを `config.json` として作成します。
+bootc-image-builderのコンフィグファイルを `config.json` として作成します (tomlでも書けるようですが、クイックガイドにそってjsonにしました)。
 
 ```
 {
@@ -197,7 +197,7 @@ bootc-image-builderのコンフィグファイルを `config.json` として作�
 }
 ```
 
-bootc-image-builderのコンテナを使って、作成したコンテナイメージをqcow2イメージに変換します。
+bootc-image-builder (のコンテナ) を使って、作成したコンテナイメージをqcow2イメージに変換します。
 
 ```
 mkdir -p output
@@ -256,25 +256,27 @@ config.jsonに設定した鍵もしくはパスワードでログインします
 ssh -i PRIVATE_KEY -l cloud-user 192.168.124.31
 ```
 
+以下のコマンドは、Image modeで起動した仮想マシン上で実行します。
+
 ```
-[cloud-user@fedora ~]$ cat /etc/fedora-release
+$ cat /etc/fedora-release
 Fedora release 40 (Forty)
 ```
 
 ```
-[cloud-user@fedora ~]$ uname -r
+$ uname -r
 6.8.8-300.fc40.x86_64
 ```
 
-rpm-ostreeでファイルシステムが構成されていることがわかります。
+カーネルの起動パラメータで`ostree=...` によって起動するファイルシステムツリーのIDを指定しています。
 
 ```
-[cloud-user@fedora ~]$ cat /proc/cmdline
+$ cat /proc/cmdline
 BOOT_IMAGE=(hd0,gpt3)/boot/ostree/default-7292e7ed0ab72bdf2384d177b90601f1e86c37d32aeb67c59d974adcf5300e21/vmlinuz-6.8.8-300.fc40.x86_64 root=UUID=d1eea7fc-73f9-4a87-9dd1-ad0e903b9718 rw boot=UUID=60ef6a56-5356-48d8-83ae-c6f154ccbef8 rw console=tty0 console=ttyS0 ostree=/ostree/boot.1/default/7292e7ed0ab72bdf2384d177b90601f1e86c37d32aeb67c59d974adcf5300e21/0
 ```
 
 ```
-[cloud-user@fedora ~]$ rpm-ostree status
+$ rpm-ostree status
 State: idle
 Deployments:
 ● ostree-unverified-registry:quay.io/manabu.ori/lamp-bootc:latest
