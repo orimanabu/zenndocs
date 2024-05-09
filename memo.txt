@@ -5,3 +5,4 @@ npx zenn new:article --slug 記事のスラッグ --title タイトル --type id
 npx zenn preview
 
 npx zenn new:article --slug k8s-v130-user-namespace-poc --title 'Kubernetes v1.30でBetaになったUser Namespaceで遊んでみました' --type tech --emoji ⎈
+npx zenn new:article --slug try-rhel-image-mode --title 'Image mode for RHELの中身を見てみる' --type tech --emoji 🍺
