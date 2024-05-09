@@ -63,13 +63,13 @@ Image modeを実現するための要素技術は以下です。
 
 - [bootc-image-builder](https://github.com/osbuild/bootc-image-builder): (コンテナイメージから各種プラットフォーム用のOSイメージに変換する)
 
-さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、Image modeの特徴はCoreOSととてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
+さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、Image modeの特徴はCoreOSととてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通です。CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
 
 # コンテナイメージの作成
 
 OS起動およびImage modeに必要な最低限のツールを含んだイメージ(以下bootcイメージ)が用意されているので、それをベースに自分のコンテナイメージを作成します。
 
-クイックガイドではRHEL9ベースのbootcイメージをベースにしていますが、本記事ではサブスクリプション契約の必要がないFedora40ベースのbootcイメージを使いました。
+クイックガイドではRHEL 9ベースのbootcイメージをベースにしていますが、本記事ではサブスクリプション契約の必要がないFedora 40ベースのbootcイメージを使いました。
 
 ```
 podman pull quay.io/fedora/fedora-bootc:40
@@ -92,7 +92,7 @@ RUN systemctl enable httpd mariadb php-fpm
 RUN echo '<h1 style="text-align:center;">Welcome to image mode for RHEL</h1> <?php phpinfo(); ?>' >> /var/www/html/index.php
 ```
 
-クイックガイドでは `Containerfile` という名前のファイルに記述していますが、Dockerfileでも構いません。
+クイックガイドでは `Containerfile` という名前のファイルに記述していますが、ファイル名は `Dockerfile` でも構いません。
 
 ```
 podman build -f Dockerfile -t quay.io/manabu.ori/lamp-bootc:latest
@@ -118,37 +118,39 @@ Content-Type: text/html; charset=UTF-8
 Dockerfileに記載したとおり、initがPID 1で、その下にApache httpdやMariaDBが動いています。
 
 ```
-$ podman exec lamp ps auxww
-USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
-root           1  0.7  0.0  21316 13056 ?        Ss   11:08   0:01 /sbin/init
-root          33  0.1  0.0  32840 11304 ?        Ss   11:08   0:00 /usr/lib/systemd/systemd-journald
-root          38  0.0  0.0  16136  6272 ?        Ss   11:08   0:00 /usr/lib/systemd/systemd-userdbd
-dbus         105  0.0  0.0   9992  4996 ?        Ss   11:08   0:00 /usr/bin/dbus-broker-launch --scope system --audit
-dbus         108  0.0  0.0   5380  3152 ?        S    11:08   0:00 dbus-broker --log 4 --controller 9 --machine-id 03ada5b11dba19461a1387b20c3a3354 --max-bytes 536870912 --max-fds 4096 --max-matches 131072 --audit
-root         110  0.0  0.0 328728 18432 ?        Ssl  11:08   0:00 /usr/sbin/NetworkManager --no-daemon
-avahi        111  0.0  0.0   7308  3968 ?        Ss   11:08   0:00 avahi-daemon: registering [03ada5b11dba-25.local]
-root         117  0.0  0.0  16572  7680 ?        Ss   11:08   0:00 /usr/lib/systemd/systemd-homed
-root         119  0.0  0.0  16400  7552 ?        Ss   11:08   0:00 /usr/lib/systemd/systemd-logind
-root         121  0.0  0.0 476436 15384 ?        Ssl  11:08   0:00 /usr/libexec/udisks2/udisksd
-avahi        133  0.0  0.0   7308  1160 ?        S    11:08   0:00 avahi-daemon: chroot helper
-root         164  0.1  0.0  41148 17280 ?        Ss   11:08   0:00 php-fpm: master process (/etc/php-fpm.conf)
-root         177  0.0  0.0  52796  3628 ?        Ssl  11:08   0:00 /usr/sbin/gssproxy -D
-root         195  0.1  0.0  19268 10956 ?        Ss   11:08   0:00 /usr/sbin/httpd -DFOREGROUND
-root         225  0.0  0.0  14820  8704 ?        Ss   11:08   0:00 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
-apache       255  0.0  0.0  41148 12096 ?        S    11:08   0:00 php-fpm: pool www
-apache       259  0.0  0.0  41148  7104 ?        S    11:08   0:00 php-fpm: pool www
-apache       260  0.0  0.0  41148  7104 ?        S    11:08   0:00 php-fpm: pool www
-apache       262  0.0  0.0  41148  7104 ?        S    11:08   0:00 php-fpm: pool www
-apache       263  0.0  0.0  41180  7104 ?        S    11:08   0:00 php-fpm: pool www
-apache       295  0.0  0.0  18988  5228 ?        S    11:08   0:00 /usr/sbin/httpd -DFOREGROUND
-apache       299  0.0  0.0 2420260 7800 ?        Sl   11:08   0:00 /usr/sbin/httpd -DFOREGROUND
-apache       300  0.0  0.0 2223588 7288 ?        Sl   11:08   0:00 /usr/sbin/httpd -DFOREGROUND
-apache       321  0.0  0.0 2223588 7288 ?        Sl   11:08   0:00 /usr/sbin/httpd -DFOREGROUND
-mysql        528  0.1  0.1 1277676 94948 ?       Ssl  11:08   0:00 /usr/libexec/mariadbd --basedir=/usr
-root         578  0.0  0.0  16532  6272 ?        S    11:09   0:00 systemd-userwork
-root         579  0.0  0.0  16532  6400 ?        S    11:09   0:00 systemd-userwork
-root         580  0.0  0.0  16532  6272 ?        S    11:09   0:00 systemd-userwork
-root         582 50.0  0.0   6504  3712 ?        R    11:11   0:00 ps auxww
+$ podman exec lamp ps axjf
+   PPID     PID    PGID     SID TTY        TPGID STAT   UID   TIME COMMAND
+      0     526       0       0 ?             -1 R        0   0:00 ps axjf
+      0       1       1       1 ?             -1 Rs       0   0:01 /sbin/init
+      1      33      33      33 ?             -1 Ss       0   0:00 /usr/lib/systemd/systemd-journald
+      1      38      38      38 ?             -1 Ss       0   0:00 /usr/lib/systemd/systemd-userdbd
+     38      52      38      38 ?             -1 S        0   0:00  \_ systemd-userwork
+     38      53      38      38 ?             -1 S        0   0:00  \_ systemd-userwork
+     38      54      38      38 ?             -1 S        0   0:00  \_ systemd-userwork
+      1     111     111     111 ?             -1 Ss      81   0:00 /usr/bin/dbus-broker-launch --scope system --audit
+    111     112     111     111 ?             -1 S       81   0:00  \_ dbus-broker --log 4 --controller 9 --machine-id e74107fdcae9eb21db962afb2df63916 --max-bytes 536870912 --max-fds 4096 --max-matches 131072 --audit
+      1     113     113     113 ?             -1 Ssl      0   0:00 /usr/sbin/NetworkManager --no-daemon
+      1     114     114     114 ?             -1 Ss      70   0:00 avahi-daemon: registering [e74107fdcae9-5.local]
+    114     132     114     114 ?             -1 S       70   0:00  \_ avahi-daemon: chroot helper
+      1     120     120     120 ?             -1 Ss       0   0:00 /usr/lib/systemd/systemd-homed
+      1     121     121     121 ?             -1 Ss       0   0:00 /usr/lib/systemd/systemd-logind
+      1     124     124     124 ?             -1 Ssl      0   0:00 /usr/libexec/udisks2/udisksd
+      1     154     154     154 ?             -1 Ss       0   0:00 /usr/lib/systemd/systemd-hostnamed
+      1     160     160     160 ?             -1 Ssl      0   0:00 /usr/libexec/nm-dispatcher
+      1     164     164     164 ?             -1 Ss       0   0:00 php-fpm: master process (/etc/php-fpm.conf)
+    164     267     164     164 ?             -1 S       48   0:00  \_ php-fpm: pool www
+    164     269     164     164 ?             -1 S       48   0:00  \_ php-fpm: pool www
+    164     272     164     164 ?             -1 S       48   0:00  \_ php-fpm: pool www
+    164     274     164     164 ?             -1 S       48   0:00  \_ php-fpm: pool www
+    164     275     164     164 ?             -1 S       48   0:00  \_ php-fpm: pool www
+      1     181     181     181 ?             -1 Ssl      0   0:00 /usr/sbin/gssproxy -D
+      1     187     187     187 ?             -1 Ss       0   0:00 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+      1     203     203     203 ?             -1 Ss       0   0:00 /usr/sbin/httpd -DFOREGROUND
+    203     298     203     203 ?             -1 S       48   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+    203     300     203     203 ?             -1 Sl      48   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+    203     302     203     203 ?             -1 Sl      48   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+    203     329     203     203 ?             -1 Sl      48   0:00  \_ /usr/sbin/httpd -DFOREGROUND
+      1     221     221     221 ?             -1 Zs      27   0:00 [mariadb-prepare] <defunct>
 ```
 
 コンテナを停止します。
