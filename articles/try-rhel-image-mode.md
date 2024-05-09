@@ -21,9 +21,9 @@ publickey1.jpでも記事が出ています。
 
 - [コンテナイメージなのにブート可能な新技術による「Image mode for Red Hat Enterprise Linux」、Red Hatが発表。レジストリなどのコンテナ関連ツールがそのまま利用可能](https://www.publickey1.jp/blog/24/image_mode_for_red_hat_enterprise_linuxred_hat.html)
 
-「コンテナイメージなのにブート可能」... はて？ (朝ドラ風に)
+「コンテナイメージなのにブート可能」... はて？
 
-というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されていますが、そのままでは動かなかった部分もあったため、本記事では少しひねって、サブスクリプション契約が必要ないものを使いました。
+というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されていますが、そのままでは動かなかった部分もあったため、本記事ではFedora/CentOS Stream 9のイメージを使いました。仕組みはImage mode for RHELとほぼ同じはずです。
 
 以下は2024年5月9日時点の検証結果です。まだもりもりと開発が続いているようなので、今後は変わるところもあるかもしれません。
 
@@ -59,6 +59,7 @@ Image mode for RHELをまとめると、以下になります。
 - [ostree](https://github.com/ostreedev/ostree): (複数のファイルシステムツリーをGitリポジトリ的に管理して切り替えられるようにする)
 - [rpm-ostree](https://github.com/coreos/rpm-ostree): (ostreeを構成するファイル群を、rpmパッケージを使って構成する)
 - [bootc](https://github.com/containers/bootc): (OCIコンテナイメージを使ってOSをアップデートできるようにする)
+- [bootc-image-builder](https://github.com/osbuild/bootc-image-builder): (コンテナイメージから各種プラットフォーム用のOSイメージに変換する)
 
 が鍵となります。
 
