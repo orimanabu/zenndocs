@@ -57,6 +57,9 @@ Image mode for RHELをまとめると、以下になります。
 中で使っている技術要素としては、
 
 - [ostree](https://github.com/ostreedev/ostree): (複数のファイルシステムツリーをGitリポジトリ的に管理して切り替えられるようにする)
+
+  - ostreeについてはこちらの資料がとても参考になります: [OSTree: OSイメージとパッケージシステムの間にGitのアプローチを](https://www.slideshare.net/i_yudai/ostree-osgit)
+
 - [rpm-ostree](https://github.com/coreos/rpm-ostree): (ostreeを構成するファイル群を、rpmパッケージを使って構成する)
 - [bootc](https://github.com/containers/bootc): (OCIコンテナイメージを使ってOSをアップデートできるようにする)
 - [bootc-image-builder](https://github.com/osbuild/bootc-image-builder): (コンテナイメージから各種プラットフォーム用のOSイメージに変換する)
