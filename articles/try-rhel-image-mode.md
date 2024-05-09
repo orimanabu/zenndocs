@@ -7,23 +7,19 @@ published: true
 ---
 # はじめに
 
-Red Hat Summit 2024でImage mode for RHELが発表されました。
+Red Hat Summit 2024でImage mode for RHELが発表されました。Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
 
-- [Experience the AI-ready OS with image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/image-mode)
-- [Introducing image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/blog/introducing-image-mode-red-hat-enterprise-linux)
-- [Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide)
-- [Image mode for Red Hat Enterprise Linux](https://developers.redhat.com/products/rhel-image-mode/overview)
-- [Announcing image mode for Red Hat Enterprise Linux](https://developers.redhat.com/articles/2024/05/07/announcing-image-mode-red-hat-enterprise-linux)
+- [Red Hat Reimagines Enterprise Linux for the AI Future with Image Mode for Red Hat Enterprise Linux](https://www.redhat.com/en/about/press-releases/red-hat-reimagines-enterprise-linux-ai-future-image-mode-red-hat-enterprise-linux) (プレスリリース)
+- [Experience the AI-ready OS with image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/image-mode) (製品ページ)
+- [Image Mode for RHEL を使用したオペレーティングシステムの構築、デプロイ、管理](https://access.redhat.com/documentation/ja-jp/red_hat_enterprise_linux/9/html-single/using_image_mode_for_rhel_to_build_deploy_and_manage_operating_systems/index) (製品ドキュメント)
 
-Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
-
-publickey1.jpでも記事が出ています。
+Publickeyでも記事が出ています。
 
 - [コンテナイメージなのにブート可能な新技術による「Image mode for Red Hat Enterprise Linux」、Red Hatが発表。レジストリなどのコンテナ関連ツールがそのまま利用可能](https://www.publickey1.jp/blog/24/image_mode_for_red_hat_enterprise_linuxred_hat.html)
 
 「コンテナイメージなのにブート可能」... はて？
 
-というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されていますが、そのままでは動かなかった部分もあったため、本記事ではFedora/CentOS Stream 9のイメージを使いました。仕組みはImage mode for RHELとほぼ同じはずです。
+というわけで本記事では、Image modeがどんなものか調べるために、[Image mode for Red Hat Enterprise Linux: A quick start guide](https://www.redhat.com/en/blog/image-mode-red-hat-enterprise-linux-quick-start-guide) (以下「クイックガイド」)に載っている手順にしたがって実際に動かしてみました。クイックガイドではRHELを使った手順が紹介されていますが、手元ではそのままでは動かなかった部分もあったため、本記事ではFedora/CentOS Stream 9のイメージを使いました。仕組み自体はImage mode for RHELと同じです。
 
 以下は2024年5月9日時点の検証結果です。まだもりもりと開発が続いているようなので、今後は変わるところもあるかもしれません。
 
