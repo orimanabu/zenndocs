@@ -3,7 +3,7 @@ title: "Image mode for RHELの中身を見てみる"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["Image mode for RHEL", "rpm-ostree", "ostree", "bootc", "Fedora"]
-published: false
+published: true
 ---
 # はじめに
 
@@ -17,7 +17,7 @@ Red Hat Summit 2024でImage mode for RHELが発表されました。
 
 Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
 
-publickey1.jpでも取り上げられました。
+publickey1.jpでも記事が出ています。
 
 - [コンテナイメージなのにブート可能な新技術による「Image mode for Red Hat Enterprise Linux」、Red Hatが発表。レジストリなどのコンテナ関連ツールがそのまま利用可能](https://www.publickey1.jp/blog/24/image_mode_for_red_hat_enterprise_linuxred_hat.html)
 
