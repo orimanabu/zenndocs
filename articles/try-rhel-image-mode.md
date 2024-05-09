@@ -63,7 +63,7 @@ Image modeを実現するための要素技術は以下です。
 
 - [bootc-image-builder](https://github.com/osbuild/bootc-image-builder): (コンテナイメージから各種プラットフォーム用のOSイメージに変換する)
 
-さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、とてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
+さて、CoreOS (Container LinuxではなくRed Hat買収後の方) の中身をご存知の方は、Image modeの特徴はCoreOSととてもよく似ていると思われたのではないでしょうか。実際、ほとんどの部分はCoreOSと共通で、CoreOSにbootcの仕組みを合体させたものがImage modeと思ってもよいかもしれません。
 
 # コンテナイメージの作成
 
