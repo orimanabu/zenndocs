@@ -1,5 +1,5 @@
 ---
-title: "Image mode for RHELの中身を見てみる"
+title: "Image mode for Red Hat Enterprise Linuxの中身を見てみる"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["rpm-ostree", "ostree", "bootc", "Fedora", "RHEL"]
@@ -7,7 +7,7 @@ published: true
 ---
 # はじめに
 
-Red Hat Summit 2024でImage mode for RHELが発表されました。Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
+Red Hat Summit 2024でImage mode for Red Hat Enterprise Linuxが発表されました。Red Hatからいくつか関連情報が出ていますが、どれも抽象的でいまいちよくわかりません。
 
 - [Red Hat Reimagines Enterprise Linux for the AI Future with Image Mode for Red Hat Enterprise Linux](https://www.redhat.com/en/about/press-releases/red-hat-reimagines-enterprise-linux-ai-future-image-mode-red-hat-enterprise-linux) (プレスリリース)
 - [Experience the AI-ready OS with image mode for Red Hat Enterprise Linux](https://www.redhat.com/en/technologies/linux-platforms/enterprise-linux/image-mode) (製品ページ)
