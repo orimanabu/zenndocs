@@ -40,7 +40,7 @@ FIPS 140のバージョンとRed Hat製品の関係は、[FIPS 140 Lifecycle Sup
 
 - FIPS 140-3
 
-  - RHEL 9.2 (およびRHEL 9.2のOpenSSLを使うOpenShift 4.14) のOpenSSL暗号化モジュールについて、2023年中にFIPS140-3の承認を申請する予定 (実際申請済み)。OpenShift 4.12のーザーが移行できるよう、申請は2025年Q4までに承認される予定。
+  - RHEL 9.2^[FIPS 140-3に準拠するため、RHEL 9.2以降では、TLS 1.2接続する際にExtended Master Secret (EMS, RFC7627) 拡張が必須になりました。TLS 1.2でEMS拡張に対応していない古いOS(例えばRHEL7)は、FIPS準拠モードで動くRHEL 9.2とは接続できませんのでご注意ください] (およびRHEL 9.2のOpenSSLを使うOpenShift 4.14) のOpenSSL暗号化モジュールについて、2023年中にFIPS140-3の承認を申請する予定 (実際申請済み)。OpenShift 4.12のーザーが移行できるよう、申請は2025年Q4までに承認される予定。
   - FIPS承認されたOpenShift 4.14を3年あいだ使用できること、およびその後1年あいだの次バージョンへの移行期間を設ける予定
 
 という状況です。
@@ -57,7 +57,7 @@ RHELをFIPS準拠モードにすると、
 
 - カーネル起動オプションに `fips=1` が追加される
   - 起動後、`/proc/sys/crypto/fips_enabled` の値が `1` になる (多くのユーザーランドがFIPS準拠モードで起動したかどうかの判断にこのsysctl値を使用する)
-- システム全体の暗号化ポリシーがFIPS準拠になる (`update-crypto-policy --set FIPS` を実行した状態)
+- システム全体の暗号化ポリシーがFIPS準拠になる^[crypto policiesによる暗号化ポリシーの設定については、[こちら](https://speakerdeck.com/moriwaka/sisutemuquan-ti-noan-hao-hua-porisiwokasutamaizu)をご参照ください] (`update-crypto-policy --set FIPS` を実行した状態)
 - dracutモジュールとして `fips` を追加したinitramfsが再作成される
   - FIPS準拠した暗号化カーネルモジュールのみをロードする
   - 暗号化アルゴリズムが想定したものかどうかセルフテストする
