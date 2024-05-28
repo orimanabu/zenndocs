@@ -78,6 +78,11 @@ OpenShift/Kubernetesは主にGo言語で書かれています。Goは言語標�
 
 また、FIPS準拠のためにOpenSSLの暗号化モジュールを使用するには、`CGO_ENABLED=1` でアプリケーションをビルドする必要があります。
 
+これらの変更内容は、次のリポジトリで開発を続けています。
+
+- https://github.com/golang-fips/go
+- https://github.com/golang-fips/openssl
+
 ## 背景
 
 Go言語標準の暗号化ルーチンは、[FIPS対応するつもりはない](https://github.com/golang/go/issues/11658#issuecomment-120448974)そうです。
@@ -88,7 +93,7 @@ Goは、暗号化ルーチンをGo標準ライブラリではなくBoringCrypto�
 
 Red HatのGoツールチェインは、このブランチをフォークして、BoringSSLではなくOpenSSLの暗号化モジュールを呼び出すようにしました。OpenShiftをFIPS準拠させるにあたって、OpenShiftとOS(RHEL)の暗号化モジュールを統一できることは、申請にかかる工数や時間の面でメリットになると考えたのだと思われます。
 
-# OpenShiftのFIPS準拠
+# OpenShiftをFIPS準拠モードで動かす
 
 OpenShiftをFIPS準拠モードにするには、install-config.yamlに `fips: true` を追記してクラスターを構築します。
 
@@ -180,10 +185,123 @@ lr--------. 1 root root 64 May 28 00:09 8561000-8562000 -> /usr/bin/kube-apiserv
 lr--------. 1 root root 64 May 28 00:09 8562000-866f000 -> /usr/bin/kube-apiserver
 ```
 
+# おまけ
+
+暗号化モジュールを呼び出すコードを使って、実際にOpenSSLが呼ばれるところをデバッガで追いかけます。
+
+使用するコードはこれです。
+
+```go:cryptotest.go
+package main
+
+import (
+        "crypto/aes"
+        "fmt"
+)
+
+func main() {
+        key := "01234567801234567899012345678901"
+        _, err := aes.NewCipher([]byte(key))
+        if err != nil {
+                fmt.Println(err)
+        }
+}
+```
+
+delveでデバッグ実行します。
+
+```
+$ dlv debug cryptotest.go
+Type 'help' for list of commands.
+(dlv)
+```
+
+`aes.NewCipher()` の中に入ります。
+
+```
+(dlv) b aes.NewCipher
+Breakpoint 1 set at 0x4d31ef for crypto/aes.NewCipher() /usr/lib/golang/src/crypto/aes/cipher.go:33
+(dlv) c
+> crypto/aes.NewCipher() /usr/lib/golang/src/crypto/aes/cipher.go:33 (hits goroutine(1):1 total:1) (PC: 0x4d31ef)
+    28:
+    29: // NewCipher creates and returns a new cipher.Block.
+    30: // The key argument should be the AES key,
+    31: // either 16, 24, or 32 bytes to select
+    32: // AES-128, AES-192, or AES-256.
+=>  33: func NewCipher(key []byte) (cipher.Block, error) {
+    34:         k := len(key)
+    35:         switch k {
+    36:         default:
+    37:                 return nil, KeySizeError(k)
+    38:         case 16, 24, 32:
+(dlv)
+```
+
+しばらくステップオーバーします。
+
+```
+> crypto/aes.NewCipher() /usr/lib/golang/src/crypto/aes/cipher.go:42 (PC: 0x4d327d)
+    37:                 return nil, KeySizeError(k)
+    38:         case 16, 24, 32:
+    39:                 break
+    40:         }
+    41:         if boring.Enabled() {
+=>  42:                 return boring.NewAESCipher(key)
+    43:         }
+    44:         return newCipher(key)
+    45: }
+    46:
+    47: // newCipherGeneric creates and returns a new cipher.Block
+(dlv)
+```
+
+`boring.Enabled()` の中でOSがFIPS準拠モードで稼働しているかを確認します。今はFIPS準拠モードのRHEL上で実行しているので、42行目に来ます(もしOSが通常モードで起動していれば、`boring.Enabled()`はfalseを返すので、44行目に飛んで、Go標準の暗号化ルーチンに入ります)。
+
+`boring.NewAESCipher()` にステップインしてしばらく実行を進めると、OpenSSLのEVP_aes_256_ecb()を呼び出すところに来ます。
+
+```
+> vendor/github.com/golang-fips/openssl-fips/openssl.NewAESCipher() /usr/lib/golang/src/vendor/github.com/golang-fips/openssl-fips/openssl/aes.go:58 (PC: 0x4cdeb0)
+    53:         case 128:
+    54:                 c.cipher = C._goboringcrypto_EVP_aes_128_ecb()
+    55:         case 192:
+    56:                 c.cipher = C._goboringcrypto_EVP_aes_192_ecb()
+    57:         case 256:
+=>  58:                 c.cipher = C._goboringcrypto_EVP_aes_256_ecb()
+    59:         default:
+    60:                 return nil, errors.New("crypto/cipher: Invalid key size")
+    61:         }
+    62:
+    63:         runtime.SetFinalizer(c, (*aesCipher).finalize)
+(dlv)
+```
+
+バックトレースを表示します。
+
+```
+(dlv) s
+> vendor/github.com/golang-fips/openssl-fips/openssl._Cfunc__goboringcrypto_EVP_aes_256_ecb() _cgo_gotypes.go:1215 (PC: 0x4cd78f)
+(dlv) bt
+0  0x00000000004cd78f in vendor/github.com/golang-fips/openssl-fips/openssl._Cfunc__goboringcrypto_EVP_aes_256_ecb
+   at _cgo_gotypes.go:1215
+1  0x00000000004cdeb5 in vendor/github.com/golang-fips/openssl-fips/openssl.NewAESCipher
+   at /usr/lib/golang/src/vendor/github.com/golang-fips/openssl-fips/openssl/aes.go:58
+2  0x00000000004d32b0 in crypto/aes.NewCipher
+   at /usr/lib/golang/src/crypto/aes/cipher.go:42
+3  0x00000000004d41c5 in main.main
+   at ./cryptotest.go:10
+4  0x000000000043ff98 in runtime.main
+   at /usr/lib/golang/src/runtime/proc.go:250
+5  0x000000000046b521 in runtime.goexit
+   at /usr/lib/golang/src/runtime/asm_amd64.s:1594
+(dlv)
+```
+
 # 参考文献
 
-本文中ではリンクを載せていませんが参考になったページを下記に記します。
+本文中ではリンクを載せていませんが参考にしたページを下記に記します。
 
+- [Go and FIPS 140-2 on Red Hat Enterprise Linux](https://developers.redhat.com/blog/2019/06/24/go-and-fips-140-2-on-red-hat-enterprise-linux)
+- [Is your Go application FIPS compliant?](https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant)
 - [FIPS compliant crypto in golang](https://kupczynski.info/posts/fips-golang/)
 - [RH article on FIPS-compliant Go](https://www.reddit.com/r/golang/comments/vbkm49/rh_article_on_fipscompliant_go/) (よく見たら回答しているのがsmarterclayton氏だった)
 - [Navigating FIPS Compliance for Go Applications: Libraries, Integration, and Security](https://medium.com/cyberark-engineering/navigating-fips-compliance-for-go-applications-libraries-integration-and-security-42ac87eec40b)
