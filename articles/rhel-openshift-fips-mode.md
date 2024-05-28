@@ -47,7 +47,7 @@ FIPS 140のバージョンとRed Hat製品の関係は、[FIPS 140 Lifecycle Sup
 
 # RHELをFIPS準拠モードで動かす
 
-RHELをFIPS準拠させるためには、インストール時に「FIPS準拠モード」でインストールする必要があります。具体的には、起動オプションに `fips=1` を追加してインストーラを起動します。
+RHELをFIPS準拠させるためには、インストール時に「FIPS準拠モード」でインストールする必要があります。具体的には、起動オプションに `fips=1` を追加してインストーラを起動します (詳細は製品ドキュメントをご参照ください: https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/security_hardening/assembly_installing-the-system-in-fips-mode_security-hardening#federal-information-processing-standards-140-and-fips-mode_assembly_installing-the-system-in-fips-mode)。
 
 ![](/images/rhel9-fips.png)
 
@@ -95,7 +95,7 @@ Red HatのGoツールチェインは、このブランチをフォークして�
 
 # OpenShiftをFIPS準拠モードで動かす
 
-OpenShiftをFIPS準拠モードにするには、install-config.yamlに `fips: true` を追記してクラスターを構築します。
+OpenShiftをFIPS準拠モードにするには、install-config.yamlに `fips: true` を追記してクラスターを構築します (詳細はドキュメントをご参照ください: https://docs.openshift.com/container-platform/4.15/installing/installing-fips.html#installing-fips-mode_installing-fips)。
 
 FIPS準拠モードのOpenShiftでは、暗号化モジュールとしてRHELのFIPS承認済みのコンポーネントを使用します。
 具体的には、RHEL CoreOSが「FIPS準拠モードのRHEL」と同じ状態、つまり `fips=1` オプションがついた状態でカーネルが起動し、crypto policyが `FIPS` に設定され、dracutモジュールとしてfipsが有効になった状態で動いています^[細かいですが、CoreOSの場合はFIPS準拠モードかどうかによらずinitramfsに最初からfipsモジュールが組み込まれており、FIPS準拠モードで起動した場合のみfipsモジュールを実行するような実装になっています]。
@@ -103,7 +103,7 @@ FIPS準拠モードのOpenShiftでは、暗号化モジュールとしてRHELの
 kubeadm等で使用するKubernetesのバイナリはCGO_ENABLED=0でシングルバイナリとしてビルドされているようです (私が見た範囲では)。
 一方、OpenShiftはCGO_ENABLED=1でビルドされています。
 
-kube-apiserverのバイナリを実際に調べます。まず、kube-apiserverコンテナのイメージIDを調べます。
+OpenShift v4.15.7のkube-apiserverのバイナリを実際に調べます。まず、kube-apiserverコンテナのイメージIDを調べます。
 
 ```
 $ oc -n openshift-kube-apiserver get pod kube-apiserver-ip-10-0-0-254.us-east-2.compute.internal -o json | jq -r '.spec.containers[] | select(.name == "kube-apiserver") | .image'
@@ -208,7 +208,7 @@ func main() {
 }
 ```
 
-delveでデバッグ実行します。
+FIPS準拠モードで起動したRHEL 9.2の仮想マシン上で、delveを使ってデバッグ実行します。
 
 ```
 $ dlv debug cryptotest.go
