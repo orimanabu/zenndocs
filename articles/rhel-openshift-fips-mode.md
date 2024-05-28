@@ -1,5 +1,5 @@
 ---
-title: "OpenShiftのFIPS準拠モード"
+title: "RHEL, OpenShiftのFIPS準拠モード"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: ["RHEL", "OpenShift", "Kubernetes", "Go", "FIPS"]
