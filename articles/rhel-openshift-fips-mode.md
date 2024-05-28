@@ -91,7 +91,7 @@ Go言語標準の暗号化ルーチンは、[FIPS対応するつもりはない]
 
 Goは、暗号化ルーチンをGo標準ライブラリではなくBoringCryptoに切り替える[dev.boringcryptoブランチ](https://github.com/golang/go/tree/dev.boringcrypto)を持っていました^[dev.boringcryptoブランチは2022年5月に[masterにマージされた](https://github.com/golang/go/commit/f771edd7f92a47c276d65fbd9619e16a786c6746)ようです]。
 
-Red HatのGoツールチェインは、このブランチをフォークして、BoringSSLではなくOpenSSLの暗号化モジュールを呼び出すようにしました。OpenShiftをFIPS準拠させるにあたって、OpenShiftとOS(RHEL)の暗号化モジュールを統一できることは、申請にかかる工数や時間の面でメリットになると考えたのだと思われます。
+Red HatのGoツールチェインは、このブランチをフォークして、BoringSSLではなくOpenSSLの暗号化モジュールを呼び出すようにしました。OpenShiftをFIPS準拠させるにあたって、OpenShiftとOS(RHEL)の暗号化モジュールを統一できることは、FIPS準拠の申請にかかる工数や時間の面でメリットになると考えたのだと思われます。
 
 # OpenShiftをFIPS準拠モードで動かす
 
@@ -141,7 +141,7 @@ fileやlddを使うと、kube-apiserverのバイナリがダイナミックリ�
         /lib64/ld-linux-x86-64.so.2 (0x00007f390a08a000)
 ```
 
-kube-apiserverのプロセス空間にマッピングされているファイルを確認すると、lddの出力にはなかった `libcrypto.so` や `/usr/lib64/ossl-modules/fips.so` がマッピングされていることがわかります。`libcrypto.so` はGoのランタイムによって、`fips.so` はOpenSSLのPrividerの仕組みによってそれぞれdl_open(3)でプロセス実行中に読み込まれたものです^[RHEL 9はOpenSSL 3系なので、FIPS対応時はfips.soをdl_open(3)しますが、RHEL 8はOpenSSL 1系なので、ファイルのマッピングの見え方は異なります (OpenSSL 1系にはfips.soは存在しないため、libcrypto.soのみdl_open(3)します)]^[libcrypto.soに関しては、FIPS準拠モードかどうかに関わらず、Goランタイムがdo_open(3)します。FIPS準拠モードで稼働しているかどうかを実行時に判断するために、libcrypto.soの[関数](https://www.openssl.org/docs/man3.0/man3/EVP_default_properties_is_fips_enabled.html)を呼び出すためです]。
+kube-apiserverのプロセス空間にマッピングされているファイルを確認すると、lddの出力にはなかった `libcrypto.so` や `/usr/lib64/ossl-modules/fips.so` がマッピングされていることがわかります。`libcrypto.so` はGoのランタイムによって、`fips.so` はOpenSSLの[FIPS Privider](https://github.com/openssl/openssl/blob/master/README-FIPS.md)の仕組みによってそれぞれdl_open(3)でプロセス実行中に読み込まれたものです^[RHEL 9はOpenSSL 3系なので、FIPS対応時はfips.soをdl_open(3)しますが、RHEL 8はOpenSSL 1系なので、ファイルのマッピングの見え方は異なります (OpenSSL 1系にはfips.soは存在しないため、libcrypto.soのみdl_open(3)します)]^[libcrypto.soに関しては、FIPS準拠モードかどうかに関わらず、Goランタイムがdo_open(3)します。FIPS準拠モードで稼働しているかどうかを実行時に判断するために、libcrypto.soの[関数](https://www.openssl.org/docs/man3.0/man3/EVP_default_properties_is_fips_enabled.html)を呼び出すためです]。
 
 ```
 # ls -l /proc/$(pidof kube-apiserver)/map_files
