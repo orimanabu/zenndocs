@@ -5,26 +5,27 @@ type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [rosetta, macos, libkrun]
 published: true
 ---
+
 # はじめに
 Appleは、Linux用のRosettaバイナリを提供しています。
 Rosettaを使うと、Apple Siliconを搭載するハードウェアのmacOSで稼働するaarch64 Linux仮想マシン上で、x86_64バイナリを実行できるようになります[^1]。
 
 Rosettaは、実行環境がVirtualization.framework(Apple純正のVMM用フレームワーク)を使った仮想環境でないと使えません。
-ですが、なんとVMMライブラリである[libkrun](https://github.com/containers/libkrun)は、Virtualization.frameworkを使っていないにもかかわらずRosettaを使うことができます(した) (実はこの機能はrevertされており、今はできません)。
+ですが、VMMライブラリである[libkrun](https://github.com/containers/libkrun)は、Virtualization.frameworkを使っていないにもかかわらずRosettaを使うことができます(した) (実はこの機能はrevertされており、今はできません)。
 
 本文書は、(1) RosettaがどうやってVMMをチェックしているのか、(2) libkrunはどうやって回避したのか、の2点についてまとめたものです。
 
 # 前提知識
 
-macOSは、仮想化を支援するフレームワークとしてHypervisor.framework、Virtualization.frameworkの2つを持っています。Hypervisor.frameworkは仮想化のコア機能を提供するライブラリで、Linuxにおけるkvm.koに相当します。Virtualization.frameworkはVMMを実現するためのライブラリで、LinuxにおけるQemuに相当します。
+macOSは、仮想化を支援するフレームワークとして[Hypervisor.framework](https://developer.apple.com/documentation/hypervisor)、[Virtualization.framework](https://developer.apple.com/documentation/virtualization)の2つを持っています。Hypervisor.frameworkは仮想化のコア機能を提供するライブラリで、Linuxにおけるkvm.koに相当します。Virtualization.frameworkはVMMを実現するためのライブラリで、LinuxにおけるQemuに相当します。
 
-libkrunやHVFアクセラレーションを使ったQemuは、Hypervisor.frameworkを使っています。
+libkrunや[HVFアクセラレーションを使ったQemu](https://wiki.qemu.org/Features/HVF)は、Hypervisor.frameworkを使っています。
 
 Virtualization.frameworkを使っているツールとしては、[UTM](https://mac.getutm.app/)や[Lima](https://lima-vm.io/)などがあります。macOS上でPodmanを実行するときも、v5.0以降ではVirtualization.frameworkを使ったLinux仮想マシンを使います。
 
 # RosettaのVMMチェックの仕組み
 
-[「Quick look at Rosetta on Linux」というブログ記事](https://threedots.ovh/blog/2022/06/quick-look-at-rosetta-on-linux/)によると、「rosettaを実行すると、rosettaバイナリ(`/proc/self/exe`)に謎のioctl(2)を発行して、特定の文字列が返ってくること」を確認しているようです。
+「[Quick look at Rosetta on Linux](https://threedots.ovh/blog/2022/06/quick-look-at-rosetta-on-linux/)」というブログ記事によると、「rosettaを実行すると、rosettaバイナリ(`/proc/self/exe`)に謎のioctl(2)を発行して、特定の文字列が返ってくること」を確認しているようです。
 
 ...で終わるのもナニなので、実際に確認してみます。
 
