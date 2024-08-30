@@ -3,7 +3,7 @@ title: "Rosettaはなぜ特定のVMM上の仮想マシンでないと使えな�
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [rosetta, macos, libkrun]
-published: false
+published: true
 ---
 # はじめに
 Appleは、Linux用のRosettaバイナリを提供しています。
