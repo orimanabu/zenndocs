@@ -33,8 +33,6 @@ Virtualization.frameworkを使っているツールとしては、[UTM](https://
 - ホスト: Macbook Air M2, macOS, UTM
 - ゲスト: Fedora 40
 
-## 環境確認
-
 ```sh
 ori@myfedora:~/work$ sudo dmidecode | head -n 15
 # dmidecode 3.6
@@ -198,11 +196,9 @@ close(3)
 冒頭でも書いたとおり、libkrunはVirtualization.frameworkを使わないVMMにもかかわらず、[Rosettaサポートを導入しました](https://github.com/containers/libkrun/pull/88)。すごい。
 ...と思いきや、いろいろあって、いつのまにかその[コードは消えて](https://github.com/containers/libkrun/pull/176/commits/6c2b9289b6a39826c9505f2fad5b04cc83982165)使えなくなっています。残念。
 
-revertした理由は、[PR](https://github.com/containers/libkrun/pull/176)の内容を見る限りはvirtiofs周りの事情に見えます。がもしかしたらこのVMMチェック機構をかいくぐる方法がやばそうなので(以下略)なのかも？と邪推してみたりして (← あくまで個人の妄想です)。
-
 ## libkrunでrosettaバイナリに対してioctlを発行したときの動き
 
-さて、libkrunがこのRosettaのチェックをどうかいくぐっているかというと... 結論から言うと、仮想マシンがrosettaバイナリに対して上記のioctl(2)を発行したときに呼ばれるVMM内のハンドラで、`${HOME}/.krunvm-rosetta` の内容を返す実装になっています。つまり、このファイルに、上で確認した文字列を書いておけば...というわけです。
+さて、libkrunがこのRosettaのチェックをどうかいくぐっているかというと... 結論から言うと、仮想マシンがrosettaバイナリに対して上記のioctl(2)を発行したときに呼ばれるVMM内のハンドラで、`${HOME}/.krunvm-rosetta` の内容を返す実装になっています。つまりこのファイルに、上で確認した文字列を書いておけば...というわけです。
 
 では実装を確認していきます。以下では、revert前の、commit id [af437664855a6dc27954b31f8fef2c27df37748b](https://github.com/containers/libkrun/tree/af437664855a6dc27954b31f8fef2c27df37748b) を参照します。
 
@@ -325,6 +321,3 @@ https://threedots.ovh/blog/2022/06/quick-look-at-rosetta-on-linux/
 ```
 
 [^1]: https://developer.apple.com/documentation/virtualization/running_intel_binaries_in_linux_vms_with_rosetta
-
-[^4]: https://github.com/containers/libkrun/pull/88
-[^4]: https://github.com/containers/libkrun/pull/176/commits/6c2b9289b6a39826c9505f2fad5b04cc83982165
