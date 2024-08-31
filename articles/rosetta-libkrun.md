@@ -295,6 +295,14 @@ libkrunのioctl(2)のハンドラの中で、[ioctlのtypeが `0x61` であれ�
 
 というわけで、あらかじめ `${HOME}/.krunvm-rosetta` を作って、しかるべき文字列を書いておくことで、libkrun上のLinux仮想マシンで、Rosettaを使ってx86_64バイナリを実行できるようになります。
 
+# 最後に
+
+libkrun開発者のツイートをいくつか貼っておきます (スクショではkrunvmを使っていて、VM内のLinux自体がx86_64になっているのが興味深いですね)。
+
+@[tweet](https://x.com/slpnix/status/1534496611899953152)
+
+@[tweet](https://x.com/slpnix/status/1584990985679142912)
+
 ## 余談
 
 libkrunはライブラリ形式のVMMです。libkrunを使ってコマンドラインから仮想マシンを実行するツールとして、[krunvm](https://github.com/containers/krunvm)があります。
