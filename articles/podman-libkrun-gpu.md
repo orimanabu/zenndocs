@@ -304,7 +304,7 @@ v5.0以降でPodman MachineはVirtualization.frameworkベースに移行し、Qe
 
 実は、Virtualization.frameworkは準仮想化GPUデバイスを提供していますが([ParavirtualizedGraphics.framework](https://developer.apple.com/documentation/paravirtualizedgraphics))、Linux用のデバイスドライバがありません。また、仮にLinux用のデバイスドライバがあったとしても、Linuxで動くMetal.frameworkがないこと、仮想GPU ↔ ホストGPU間のコマンド転送のシリアライズプロトコルが不明であること、などから、Virtualization.framework上のLinux仮想マシンでGPUを使えるようにするためには、かなりハードルが高そうです (実際、Virtualization.frameworkを使う仮想化ツールの中で、LinuxゲストでGPUが使えるものはまだないはずです)。
 
-また、Virtualization.frameworkのvirtiofs実装にはいくつか課題があることがわかってきました。具体的には同時書き込みに関する制限や、SELinuxと組み合わせたときの動き等です。この辺りについては、Virtualization.frameworkがAppleのプロプライエタリなソフトウェアがあるため、修正するにはAppleに要望を出して結果を待つことしかできないのがつらいところです。
+また、Virtualization.frameworkのvirtiofs実装にはいくつか課題があることがわかってきました。具体的には同時書き込みに関する制限や、SELinuxと組み合わせたときの動き等です。Virtualization.frameworkはAppleのプロプライエタリなソフトウェアであるため、修正するにはAppleに要望を出して結果を待つことしかできないのがつらいところです。
 
 - [macOS vm virtiofs concurrency issue #23061](https://github.com/containers/podman/issues/23061)
 - [VirtioFS causes intermittent failures with Rust #7059](https://github.com/docker/for-mac/issues/7059)
@@ -361,7 +361,7 @@ macOS上でのLinuxゲストからのGPUアクセスをサポートするにあ�
 
 を追加することにより、最終的にLinuxゲストからGPUを使えるようになりました。
 
-[Venusプロトコル](https://docs.mesa3d.org/drivers/venus.html)は、ゲストのvirtio-gpuがVMMのバックエンドとやり取りするときのVulkanコマンドをシリアライズするプロトコルです。Linuxゲスト上のアプリケーションがVulkan APIでvirtio-gpuにアクセスすると、VenusプロトコルでコマンドがVMMの[virgl](https://docs.mesa3d.org/drivers/virgl.html)[renderer](https://gitlab.freedesktop.org/virgl/virglrenderer)にわたり、さらに[MoltenVK](https://github.com/KhronosGroup/MoltenVK)を経由して[Metal API](https://developer.apple.com/metal/)を使ってGPUハードウェアにアクセスします。
+[Venusプロトコル](https://docs.mesa3d.org/drivers/venus.html)は、ゲストのvirtio-gpuがVMMのバックエンドとやり取りするときのVulkanコマンドをシリアライズするプロトコルです。Linuxゲスト上のアプリケーションがVulkan APIでvirtio-gpuにアクセスすると、VulkanコマンドがVenusプロトコルでVMMの[virgl](https://docs.mesa3d.org/drivers/virgl.html)[renderer](https://gitlab.freedesktop.org/virgl/virglrenderer)にわたり、さらに[MoltenVK](https://github.com/KhronosGroup/MoltenVK)を使って[Metal API](https://developer.apple.com/metal/)に変換してGPUハードウェアにアクセスします。
 
 ![](/images/virtio-gpu-acceleration-software-stack.png)
 *Linuxゲストから仮想化GPUを使用するときのソフトウェアスタック*
