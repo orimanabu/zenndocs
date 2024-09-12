@@ -302,6 +302,7 @@ Breakpoint 1 set at 0x4d31ef for crypto/aes.NewCipher() /usr/lib/golang/src/cryp
 
 - [Go and FIPS 140-2 on Red Hat Enterprise Linux](https://developers.redhat.com/blog/2019/06/24/go-and-fips-140-2-on-red-hat-enterprise-linux)
 - [Is your Go application FIPS compliant?](https://developers.redhat.com/articles/2022/05/31/your-go-application-fips-compliant)
+- [General FAQ for OpenShift and FIPS compliance](https://access.redhat.com/articles/openshift_fips_compliance_faq)
 - [FIPS compliant crypto in golang](https://kupczynski.info/posts/fips-golang/)
 - [RH article on FIPS-compliant Go](https://www.reddit.com/r/golang/comments/vbkm49/rh_article_on_fipscompliant_go/) (よく見たら回答しているのがsmarterclayton氏だった)
 - [Navigating FIPS Compliance for Go Applications: Libraries, Integration, and Security](https://medium.com/cyberark-engineering/navigating-fips-compliance-for-go-applications-libraries-integration-and-security-42ac87eec40b)

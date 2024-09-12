@@ -120,8 +120,7 @@ include/uapi/linux/sonet.h
 
 straceの出力と上記ブログ記事に載っているコードを参考に、下記のようなコードを作成します。
 
-- a.c
-```c
+```c:a.c
 /* usage: `./a.out PATH_TO_ROSETTA_BINARY` */
 /* see also: https://threedots.ovh/blog/2022/06/quick-look-at-rosetta-on-linux/ */
 
