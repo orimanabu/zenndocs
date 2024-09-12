@@ -242,7 +242,7 @@ macOSは、仮想化に関して[Hypervisor.framework](https://developer.apple.c
 |ハイパーバイザー(CPU/メモリの仮想化等)|Hypervisor.framework|KVM|
 |VMM(仮想デバイスの管理等)|Virtualization.framework|Qemu|
 
-![](/images//Hypervisor_framework_and_KVM.png)
+![](/images/Hypervisor_framework_and_KVM.png)
 *macOSのHypervisor.frameworkとLinux KVM[^2]*
 
 [^2]: 図はKVM Forum 2022のセッション「[Hypervisor.Framework - Virtualization on macOS](https://www.youtube.com/watch?v=adTjIMXjBLc)」より引用 (リンク先は動画です、スライドは公開されていないようでした)
