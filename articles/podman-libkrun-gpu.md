@@ -361,7 +361,7 @@ macOS上でのLinuxゲストからのGPUアクセスをサポートするにあ�
 
 を追加することにより、最終的にLinuxゲストからGPUを使えるようになりました。
 
-[Venusプロトコル](https://docs.mesa3d.org/drivers/venus.html)は、ゲストのvirtio-gpuがVMMのバックエンドとやり取りするときのVulkanコマンドをシリアライズするプロトコルです。Linuxゲスト上のアプリケーションがVulkan APIでvirtio-gpuにアクセスすると、VulkanコマンドがVenusプロトコルでVMMの[virgl](https://docs.mesa3d.org/drivers/virgl.html)[renderer](https://gitlab.freedesktop.org/virgl/virglrenderer)にわたり、さらに[MoltenVK](https://github.com/KhronosGroup/MoltenVK)を使って[Metal API](https://developer.apple.com/metal/)に変換してGPUハードウェアにアクセスします。
+Linuxゲスト上のアプリケーションがVulkan APIでvirtio-gpuにアクセスすると、Vulkanコマンドが[Venusプロトコル](https://docs.mesa3d.org/drivers/venus.html)でシリアライズされてVMMの[virgl](https://docs.mesa3d.org/drivers/virgl.html)[renderer](https://gitlab.freedesktop.org/virgl/virglrenderer)にわたり、さらに[MoltenVK](https://github.com/KhronosGroup/MoltenVK)を使って[Metal API](https://developer.apple.com/metal/)に変換してGPUハードウェアにアクセスします。
 
 ![](/images/virtio-gpu-acceleration-software-stack.png)
 *Linuxゲストから仮想化GPUを使用するときのソフトウェアスタック*
