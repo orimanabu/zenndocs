@@ -376,6 +376,7 @@ https://github.com/orimanabu/fedora-llama-vulkan
 
 # 参考文献
 
+- DevConf.US 2024: [GPU Accelerated Containers on Apple Silicon with libkrun and podman machine](https://pretalx.com/devconf-us-2024/talk/YWQZ8X/)
 - [Enabling containers to access the GPU on macOS](https://sinrega.org/2024-03-06-enabling-containers-gpu-macos/)
 - [Podman and Libkrun](https://blog.podman.io/2024/07/podman-and-libkrun/)
 - https://x.com/slpnix/status/1813482806040756598
