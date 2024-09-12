@@ -2,7 +2,7 @@
 title: "PodmanのコンテナからmacOSのApple Silicon GPUを使ってAIワークロードを高速処理できるようになりました"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: [podman macOS libkrun GPU]
+topics: ["podman", "macOS", "libkrun", "GPU"]
 published: true
 ---
 # はじめに
