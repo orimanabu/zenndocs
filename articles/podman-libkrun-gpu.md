@@ -11,9 +11,30 @@ macOS上のPodmanで、コンテナからApple Silicon MacのGPUにアクセス�
 
 macOS上でコンテナを動かすためのツールとしては、DockerやLima + containerd + nerdctlが挙げられますが、おそらく2024年8月現在、コンテナからApple Silicon GPUを使えるのはPodmanだけです(私が調べた限り...うそだったらごめんなさい)。
 
-(2024-10-30追記) Docker v4.35.0から、Docker VMMがBetaリリースされました。Docker VMMはlibkrunを使っているようです。本記事と同じ仕組みで、DockerコンテナからApple SiliconのGPUを使えそうです。
+(2024-10-30追記) Docker v4.35.0から、Docker VMMがBetaリリースされました。Docker VMMはlibkrunを使っているようです。
 
-https://x.com/orimanabu/status/1851176059745812927
+https://x.com/orimanabu/status/1851262575436247384
+
+試してみたところ、Docker VMMにするとコンテナからGPUを使うことができました。
+
+```
+ori@macbookair ~ % docker version -f json | jq -r .Server.Platform.Name
+Docker Desktop 4.35.0 (172550)
+ori@macbookair ~ % docker run --rm -ti --device /dev/dri -v ~/Downloads:/models:Z quay.io/slopezpa/fedora-vgpu-llama main --temp 0 -m models/mistral-7b-instruct-v0.2.Q4_0.gguf -b 512 -ngl 99 -p "Tell me a story"
+Log start
+main: build = 2238 (56d03d92)
+main: built with cc (GCC) 13.2.1 20231205 (Red Hat 13.2.1-6) for aarch64-redhat-linux
+main: seed  = 1730218047
+ggml_vulkan: Found 1 Vulkan devices:
+Vulkan0: Virtio-GPU Venus (Apple M2) | uma: 1 | fp16: 1 | warp size: 32
+...
+llama_print_timings:        load time =    8999.20 ms
+llama_print_timings:      sample time =      39.70 ms /   534 runs   (    0.07 ms per token, 13450.54 tokens per second)
+llama_print_timings: prompt eval time =    3929.67 ms /     5 tokens (  785.93 ms per token,     1.27 tokens per second)
+llama_print_timings:        eval time =   68185.57 ms /   533 runs   (  127.93 ms per token,     7.82 tokens per second)
+llama_print_timings:       total time =   72243.51 ms /   538 tokens
+Log end
+```
 
 (追記ここまで)
 
