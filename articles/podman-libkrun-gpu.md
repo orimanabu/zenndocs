@@ -11,9 +11,11 @@ macOS上のPodmanで、コンテナからApple Silicon MacのGPUにアクセス�
 
 macOS上でコンテナを動かすためのツールとしては、DockerやLima + containerd + nerdctlが挙げられますが、おそらく2024年8月現在、コンテナからApple Silicon GPUを使えるのはPodmanだけです(私が調べた限り...うそだったらごめんなさい)。
 
-(2024-10-30追記) Docker v4.35.0から、Docker VMMがBetaリリースされました。Docker VMMはlibkrunを使っているようで、本記事と同じ方法でコンテナからGPUを使うことができました。
+(2024-10-30追記) Docker v4.35.0から、Docker VMMがBetaリリースされました。Docker VMMはlibkrunを使っているようです
 
 https://x.com/orimanabu/status/1851262575436247384
+
+試してみたところ、本記事と同じ方法でコンテナからGPUを使うことができました。
 
 ```
 ori@macbookair ~ % docker version -f json | jq -r .Server.Platform.Name
