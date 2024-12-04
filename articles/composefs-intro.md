@@ -252,14 +252,11 @@ loopbackマウントの様子を確認します。
 
 ```
 # losetup
-NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                                                                                                                       DIO LOG-SEC
-/dev/loop1         0      0         1  1 /var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/composefs-data/composefs.blob
-                                                                                                                                                                           0     512
-/dev/loop2         0      0         1  1 /var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/composefs-data/composefs.blob
-                                                                                                                                                                           0     512
-/dev/loop0         0      0         1  1 /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/composefs-data/composefs.blob
-                                                                                                                                                                           0     512
-/dev/loop3         0      0         1  1 /var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/composefs-data/composefs.blob
+NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                                                                                                                          DIO LOG-SEC
+/dev/loop1         0      0         1  1 /var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/composefs-data/composefs.blob   0     512
+/dev/loop2         0      0         1  1 /var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/composefs-data/composefs.blob   0     512
+/dev/loop0         0      0         1  1 /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/composefs-data/composefs.blob   0     512
+/dev/loop3         0      0         1  1 /var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/composefs-data/composefs.blob   0     512
 ```
 
 コンテナストレージのoverlayfsマウントの様子を確認します。
