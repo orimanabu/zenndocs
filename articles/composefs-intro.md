@@ -196,7 +196,148 @@ foo.txt____________________________________________________________
 
 ちなみに、ファイルサイズが64バイト未満の場合は、オブジェクトストアにリダイレクトせず、erofsのイメージ内に直接ファイルデータを埋め込みます。上記の例で、オブジェクトストア内にファイルが2個しかなく、erofsイメージ内のtestdataの拡張属性 `trusted.overlay.redirect` が設定されていなかったのはそのためです。
 
+まとめると、composefsを作ると
+
+- 元になるディレクトリ以下のファイルは、その中身のハッシュ値をファイル名としたファイルとして、オブジェクトストア内にコピーされる (細かいことを言うと、reflinkが使えるファイルシステムの場合はreflinkが作られます)
+- 元のディレクトリツリーおよびメタデータの情報は、mkcomposefsで生成されるerofsイメージに格納されます。このとき、各ファイルの拡張属性に、対応するオブジェクトストア内のファイルのパスが入ります。
+- ファイルサイズが小さい場合は、オブジェクトストアにリダイレクトせず、erofsイメージにデータを直接埋め込みます
+
+のようになります。
+
 # Podmanからcomposefsを使う
+
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^2]。rootfulで実行する必要があります。
+
+[^2]: たぶん問題はerofsのイメージをloopbackマウントしているところだと思われます。loopbackマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+
+## 準備
+
+storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
+
+- 設定値は `"true"` (文字列) です
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^3]、`/usr/share/containers/storage.conf` を編集する必要があります
+
+の2点に注意してください。
+
+[^3]: PRは出ています https://github.com/containers/storage/pull/1885
+
+storage.confを編集したら、`sudo podman system reset` を実行しておきます。
+
+## コンテナイメージ
+
+Podmanでcomposefsを使用するためには、MIMETypeが `application/vnd.oci.image.layer.v1.tar+zstd` のコンテナイメージを使う必要があります。おそらく世の中にあるベースイメージで使うコンテナイメージでzstdになっているものはほとんどないと思われますが、今のPodmanはデフォルトでzstd:chunkedを使う設定になっていますので、適当に手元でDockerfileを書いてbuild & pushすると、zstdのコンテナイメージとしてレジストリにpushします。以下の例では `quay.io/manabu.ori/myhttpd` を使用します。このイメージはzstdで圧縮したものになっています。
+
+```
+# skopeo inspect docker://quay.io/manabu.ori/myhttpd | jq '.LayersData[]'
+{
+  "MIMEType": "application/vnd.oci.image.layer.v1.tar+zstd",
+  "Digest": "sha256:a6faeb3e4b76c470d82c18b84dc4b4a015cc0b89e8cef9bd763657b667b6174c",
+  "Size": 86901108,
+  "Annotations": {
+    "io.github.containers.zstd-chunked.manifest-checksum": "sha256:d605c93102081795272182d023c092e168a0b8b35532a17e298bbc9161de2b4c",
+    "io.github.containers.zstd-chunked.manifest-position": "85604264:836101:4162774:1",
+    "io.github.containers.zstd-chunked.tarsplit-position": "86440373:460663:11131307"
+  }
+}
+...
+```
+
+## コンテナの実行
+
+```
+podman run --name myhttpd --rm -d -p 8080:80 quay.io/manabu.ori/myhttpd
+```
+
+loopbackマウントの様子を確認します。
+
+```
+# losetup
+NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                                                                                                                       DIO LOG-SEC
+/dev/loop1         0      0         1  1 /var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/composefs-data/composefs.blob
+                                                                                                                                                                           0     512
+/dev/loop2         0      0         1  1 /var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/composefs-data/composefs.blob
+                                                                                                                                                                           0     512
+/dev/loop0         0      0         1  1 /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/composefs-data/composefs.blob
+                                                                                                                                                                           0     512
+/dev/loop3         0      0         1  1 /var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/composefs-data/composefs.blob
+```
+
+コンテナストレージのoverlayfsマウントの様子を確認します。
+
+```
+# findmnt -J | jq '.filesystems[].children[] | select(.target == "/var/lib/containers/storage/overlay")'
+{
+  "target": "/var/lib/containers/storage/overlay",
+  "source": "/dev/nvme0n1p3[/root/var/lib/containers/storage/overlay]",
+  "fstype": "btrfs",
+  "options": "rw,relatime,seclabel,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=256,subvol=/root",
+  "children": [
+    {
+      "target": "/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/merged",
+      "source": "overlay",
+      "fstype": "overlay",
+      "options": "rw,nodev,relatime,context=\"system_u:object_r:container_file_t:s0:c699,c861\",lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/2:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/3:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/4::/var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff::/var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/diff::/var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/diff::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,upperdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/diff,workdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/work,redirect_dir=on,uuid=on,metacopy=on,volatile"
+    }
+  ]
+}
+```
+
+実行中のコンテナのoverlayfsマウントのオプションを紐解いてみます。
+
+```
+rw,
+nodev,
+relatime,
+context="system_u:object_r:container_file_t:s0:c699,c861",
+lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/2:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/3:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/4::/var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff::/var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/diff::/var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/diff::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
+upperdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/diff,
+workdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/work,
+redirect_dir=on,
+uuid=on,
+metacopy=on,
+volatile
+```
+
+さらにlowerdirを見やすく整形すると...
+
+```
+lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1
+:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/2
+:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/3
+:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/4
+::/var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff
+::/var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/diff
+::/var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/diff
+::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
+```
+
+コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています。そのうちの一つを覗いてみましょう。
+
+```
+# mount -oloop /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/composefs-data/composefs.blob /mnt/tmp
+# cat /mnt/tmp/var/www/html/index.html
+# getfattr -d -m - /mnt/tmp/var/www/html/index.html
+getfattr: Removing leading '/' from absolute path names
+# file: mnt/tmp/var/www/html/index.html
+trusted.overlay.metacopy=0sACQAAeG6n0gwFNmWFkJWaUL9QlUwHYFLULh0Z7qRFqFgm3iQ
+trusted.overlay.redirect="/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0cd6ca339b0dea"
+```
+
+```
+# cat /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0cd6ca339b0dea
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Fedora Container</title>
+</head>
+<body>
+    <h1>Welcome to Fedora Container!</h1>
+</body>
+</html>
+```
 
 # 歴史
 
