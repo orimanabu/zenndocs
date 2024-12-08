@@ -19,15 +19,17 @@ published: false
 
 zstd:chunkedを使うと、これらの課題を解決することができます。
 
-- ネットワーク負荷 → レイヤー単位ではなく、レイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルはスキップすることでダウンロード時間を短縮できます。
-- ストレージ消費量 → レイヤーをまたがって存在するファイルは、ハードリンクもしくはreflinkによってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
+- ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
+- ストレージ消費量 → レイヤーをまたがって存在するファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
 - メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます。
+
+[^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
 
 # zstdとは
 
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、ご存知の方もいらっしゃるかと思いますが、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
-zstdはコンテナイメージのメディアタイプとしても使うことができます。従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` が2019年8月にOCI Image Specで定義されました[^1]。代表的なコンテナエンジン/ランタイムは下記バージョンからサポートされています。
+OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^2]。代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
 - Moby v23 (2023-02)
 - containerd v1.5 (2021-05)
@@ -36,98 +38,61 @@ zstdはコンテナイメージのメディアタイプとしても使うこと�
 
 コンテナレジストリに関しても、おそらくだいたい使える状態なのではないかと思います (docker.io、quay.ioでは使えます)。
 
-[^1]: https://github.com/opencontainers/image-spec/pull/788
+[^2]: https://github.com/opencontainers/image-spec/pull/788
 
 XXX Fedoraでコンテナイメージのデフォルトをzstdにしようという提案2024年6月にありましたが、結局rejectされています。
 XXX https://fedoraproject.org/wiki/Changes/zstd:chunked
 XXX https://discussion.fedoraproject.org/t/switch-fedora-container-images-to-support-zstd-chunked-format-by-default/123712
 XXX https://discussion.fedoraproject.org/t/f41-change-proposal-default-podman-created-images-to-zstd-chunked-self-contained/125540
 
-# zstd:chunked
+# zstd:chunkedとは
 
-従来のコンテナイメージのレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
-これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」に変えて、最後に「そのtarballのどこにどんなファイルが入っているか」の目次(TOC, Table of Contents)の情報を追加したものが、zstd:chunkedです。
+zstd:chunkedは、tar+zstdのメディアタイプの派生形です。
 
-containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstarga-snapshotterがあり、そこでeStargzというイメージフォーマットが使われています。eStargzも「個々のファイルをgzipで圧縮してtarでまとめたもの」にTOC情報をつけたコンテナイメージフォーマットです。
-
-eStargzもzstd:chunkedも、GoogleのCRFSというPoCプロジェクトで考案されたstargz (Seekable tar + gz) にインスパイアされたフォーマットで、「個々のファイルをzstd/gzipで圧縮したものを連結して、それを伸長すると、もとのファイル群を連結したものになる」という性質を使っています。この性質により、eStargzやzstd:chunkedに対応していないコンテナランタイムでも、image-specの `application/vnd.oci.image.layer.v1.tar+gzip` や `application/vnd.oci.image.layer.v1.tar+zstd` に対応していれば、通常の圧縮ファイルとしてイメージを扱うことができます。
-
-eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
-
-zstd:chunkedは、
-
-
-[RFC8878の3.1 Frames](https://datatracker.ietf.org/doc/html/rfc8878#name-frames)に次のような記載があります: 
+zstdを定義した[RFC8878の3.1 Frames](https://datatracker.ietf.org/doc/html/rfc8878#name-frames)に次のような記載があります: 
 
 > Zstandard compressed data is made up of one or more frames. Each frame is independent and can be decompressed independently of other frames. The decompressed content of multiple concatenated frames is the concatenation of each frame's decompressed content.
 > 
 > There are two frame formats defined for Zstandard: Zstandard frames and skippable frames. Zstandard frames contain compressed data, while skippable frames contain custom user metadata.
 
-つまりzstdには、gzipと同様、「個々のファイルをzstdで圧縮したものを連結して、それを伸長すると、もとのファイル群を連結したものになる」という性質があります。
+つまりzstdには、「個々のファイルをzstdで圧縮したものを連結して、それを伸長すると、もとのファイル群を連結したものになる」という性質があります。
+この性質を活用してコンテナレイヤーをファイル単位で扱えるようにしたのがzstd:chunkedです。
 
-従来のコンテナイメージにレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」にしても、
+従来のコンテナイメージのレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
+zstdは、これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」に変えて、最後に「そのtarballのどこにどんなファイルが入っているか」の目次(TOC, Table of Contents)の情報を追加したものです。
 
+## 余談
 
+gzipにも同じ性質があり、Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstargz-snapshotterがあり、そこで使われているのがeStargzというイメージフォーマットです。
 
-zstd:chunkedは `tar+zstd` メディアタイプの派生形で、
+eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
 
-zstd:chunkedはそのvariantで、eStargzのようなファイル単位でのイメージ取得ができるようになります。
+# 設定
 
-containers/storageライブラリのzstd:chunked設定はさらに一歩進んでおり、コンテナイメージを取得する際、
-```
-すでに取得しているコンテナイメージのインデックスを見て、SHA256 IDを比較してすでにpull済みであれば、そのファイルはpullせずに取得済みのファイルのハードリンクを作成、もしくは reflink copyを実施する
-```
-という処理を行います。
+# zstd:chunkedの動き
 
-zstd:chunkedは新しいコンテナイメージレイヤーのフォーマットです。eStargzと同じく、[Google CRFS](https://github.com/google/crfs)をベースとして考案されました。またxxxなど、いくつかの考え方や実装はeStargzを参考にしています。
+zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与されています。レイヤーをpullするときは、
 
-zstd:chunkedのメタデータをアポートしないコンテナランタイムにとっては、通常のzstd圧縮のレイヤーとして見えます。
-zstdは、今では多くのコンテナ周辺ツールですでにサポートされています。
-- Moby v23 (2023-02)
-- containerd v1.5 (2021-05)
-- containers/storage (2019-08)
-- CRI-O (2020-02)
-Fedoraでコンテナイメージのデフォルトをzstdにしようという提案2024年6月にありましたが、結局rejectされています。
-https://fedoraproject.org/wiki/Changes/zstd:chunked
-https://discussion.fedoraproject.org/t/switch-fedora-container-images-to-support-zstd-chunked-format-by-default/123712
-https://discussion.fedoraproject.org/t/f41-change-proposal-default-podman-created-images-to-zstd-chunked-self-contained/125540
+1. まずTOC情報をダウンロードする。TOCのオフセットはimage manifestのアノテーションに記載されている
+2. TOCにリストされたレイヤー内のファイルごとに、
+  - 取得済みの全レイヤーのTOCをチェックし、もしそのファイルが手元にあれば、手元のファイルからハードリンク or reflink or コピーを作成する
+  - 手元になければ、HTTP Range Requestを使ってファイル単位でダウンロードする
 
-従来のgzipやzstdといったtarballを圧縮したイメージレイヤーでは、レイヤー単位でSHA256のハッシュ値を見て同じものかどうかを判断するため、異なるレイヤーに同じファイルが存在する可能性があります。zstd:chunkedでは、すでに同じものが手元のコンテナストレージにあるかどうかをファイル単位で判断することで、より効率的にイメージを管理することができます。
+という流れになります。
 
-具体的には、
-- 複数のレイヤーにまたがって存在するファイルは、ひとつ分しかストレージを消費しません (ハードリンク、もしくはファイルシステムのreflink機能で実現します)
-  - ハードリンクを使う設定の場合、ページキャッシュも共有できるため、メモリ使用量も効率化できます
-- レイヤーをダウンロードする際、すでに存在するファイルはダウンロードしません。
+対象ファイルが取得済みの場合の挙動は、sotrage.confの設定で変えられます。具体的には、
 
-# ストレージの効率化
+- `use_hard_links = "true"` 設定をしていればハードリンクを作成します
+- use_hard_links設定が"false"であれば、ファイルシステムがreflinkをサポートしていればreflinkを作成します
+- use_hard_links設定が"false"で、かつファイルシステムがreflinkをサポートしていなければ、ファイルのコピーを作成します (この場合はストレージ効率化は行われません)
 
-sotrage.confで `use_hard_links = "true"` 設定をしていればハードリンクを作成する
-use_hard_links設定が"false"であれば、ファイルシステムがreflinkをサポートしていればreflinkを作成する
-use_hard_links設定が"false"で、かつファイルシステムがreflinkをサポートしていなければ、ファイルのコピーを作成する (この場合はストレージ効率化は行われない)
+メモリ消費の効率化を実現するためには、ハードリンクを使う必要があります。reflinkの場合、ファイルデータを共有するコピー元とコピー先のファイルのi-nodeが異なるため、カーネル(のVFSサブシステム)は同じファイルと認識できません。そのため、それらのファイルを読み込む際は、カーネルは別々のファイルとしてメモリにロードします。
 
-# メモリの効率化
+一方で、ハードリンクを使うにあたっては注意が必要です。具体的には、
+- ハードリンクを作成したファイル間で、i-nodeのメタデータ情報が同じになる (atime, mtime, ctime等)
+- ファイルのリンクカウントが増える
+という性質上、元のファイルシステムツリーのメタデータ情報を完全には再現できないためです。
 
-ハードリンクの場合は、i-nodeが同じなので、異なるレイヤーの同じファイルに関して、ページキャッシュはひとつ分ですむ
-reflinkの場合はi-nodeが異なるため、異なるレイヤーの同じファイルに関してページキャッシュは共有できない (reflinkのCoWにより、ストレージ消費は1個分で済むものの)
-
-
-# ネットワークの効率化
-
-pull時の動きとしては、
-
-- まずTOC (Table of Contents)情報をダウンロードする。TOCのオフセットはimage manifestのアノテーションに記載されている
-- TOCにリストされたレイヤー内のファイルごとに、
-  - そのファイルが手元にあれば、ハードリンク/reflink/コピーを作成する
-  - 手元になければ、HTTP Range Requestを使ってダウンロードする
-
-
-composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。本記事では、コンテナストレージとしてのユースケースにフォーカスします。
-
-コンテナの文脈では、composefsは「ファイル単位で重複排除ができるコンテナストレージ」を提供するファイルシステムと言えます。通常のコンテナイメージは、レイヤーごとにSHA256のハッシュ値を計算し、複数のコンテナイメージで同じレイヤーを使用する場合はそのレイヤーを共有することで、イメージレイヤーごとの重複排除を行います。composefsを使用すると、より粒度の細かいファイル単位での重複排除行うことができます (複数のレイヤーに同じバイナリが入っている場合、1個分のストレージ容量しか使いません)。
-
-なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、実はcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^1]ということで、ご容赦ください... 
-
-[^1]: 外から見えるJIRAチケットもありました https://issues.redhat.com/browse/COS-2963
 
 # reflinknのとき
 
@@ -510,3 +475,6 @@ $ smem -t -P '^httpd -D'
 -------------------------------------------------------------------------------
    50 2                                           0    77052   140187   404592
 ```
+
+# 参考文献
+- Red Hat Blog: [Pull container images faster with partial pulls](https://www.redhat.com/en/blog/faster-container-image-pulls)
