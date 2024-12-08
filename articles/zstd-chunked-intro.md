@@ -66,14 +66,17 @@ gzipもzstdと同じく「個々にgzipしたものを連結しても全体をgz
 
 eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
 
+eStargzではtar+zstdも扱えます(zstdでのlazy pullingもできます)。
+Podmanからstargz-snapshotterをAdditionalxxxとして利用することで、Podmanからlazy pullingを利用することもできます。
+
 # zstd:chunkedの動き
 
 zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与されています。レイヤーをpullするときは、
 
 1. まずTOC情報をダウンロードする。TOCのオフセットはimage manifestのアノテーションに記載されている
 2. TOCにリストされたレイヤー内のファイルごとに、
-  - 取得済みの全レイヤーのTOCをチェックし、もしそのファイルが手元にあれば、手元のファイルからハードリンク or reflink or コピーを作成する
-  - 手元になければ、HTTP Range Requestを使ってファイル単位でダウンロードする
+  a. 取得済みの全レイヤーのTOCをチェックし、もしそのファイルが手元にあれば、手元のファイルからハードリンク or reflink or コピーを作成する
+  b. 手元になければ、HTTP Range Requestを使ってファイル単位でダウンロードする
 
 という処理の流れになります。
 
