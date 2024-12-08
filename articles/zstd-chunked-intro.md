@@ -11,13 +11,39 @@ published: false
 
 本記事は、OpenShift Advent Calendar 2024の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで使えます。本記事はPodmanでの例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
+コンテナイメージはレイヤー構造になっており、各レイヤーは、コンテナで使うファイルシステムツリーをtarでまとめてgzipで圧縮したものです。コンテナイメージをpullするときは、各レイヤーのSHA256のハッシュ値を見て、すでに取得済みであればそれを使い、手元になければコンテナレジストリからダウンロードします。コンテナイメージを扱うに当たって、いくつかの課題点が挙げられます。
+
+- ネットワーク負荷: サイズの大きいレイヤーをダウンロードするには時間がかかります。レイヤーに存在するファイルの一部をすでに持っていたとしても、ダウンロードはレイヤー単位で行う必要があります。例えば脆弱性対応等の事情でレイヤーの一部だけ更新した場合でも、取得するにはレイヤー全体をダウンロードする必要があります。
+- ストレージ使用量: 重複排除の単位はレイヤーであるため、同一のファイルが異なる複数のレイヤーに存在する場合があります。
+- メモリ使用量: 中身が同じファイルが異なるレイヤーに存在する場合、カーネルがそれらをロードした際、別々にマッピングするため、余分なメモリを消費します。
+
+zstd:chunkedを使うと、これらの課題を解決することができます。
+
+- ネットワーク負荷 → レイヤー単位ではなく、レイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルはスキップすることでダウンロード時間を短縮できます。
+- ストレージ消費量 → レイヤーをまたがって存在するファイルは、ハードリンクもしくはreflinkによってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
+- メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます。
+
+# zstdとは
+
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、ご存知の方もいらっしゃるかと思いますが、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
-zstdはコンテナイメージのメディアタイプとしても使うことができます。従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` が2019年8月にOCI Image Specで定義され[^1]、代表的なコンテナレジストリ、コンテナエンジン含む関連ツールで使用できます。
+zstdはコンテナイメージのメディアタイプとしても使うことができます。従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` が2019年8月にOCI Image Specで定義されました[^1]。代表的なコンテナエンジン/ランタイムは下記バージョンからサポートされています。
 
-? `application/zstd` のMIME Media TypeはOCI image specに入っており、zstd圧縮形式のコンテナイメージは今はほとんどのコンテナレジストリで使えるはずです(少なくともdocker.ioおよびquay.ioでは使えます)。
+- Moby v23 (2023-02)
+- containerd v1.5 (2021-05)
+- containers/storage (2019-08)
+- CRI-O (2020-02)
+
+コンテナレジストリに関しても、おそらくだいたい使える状態なのではないかと思います (docker.io、quay.ioでは使えます)。
 
 [^1]: https://github.com/opencontainers/image-spec/pull/788
+
+XXX Fedoraでコンテナイメージのデフォルトをzstdにしようという提案2024年6月にありましたが、結局rejectされています。
+XXX https://fedoraproject.org/wiki/Changes/zstd:chunked
+XXX https://discussion.fedoraproject.org/t/switch-fedora-container-images-to-support-zstd-chunked-format-by-default/123712
+XXX https://discussion.fedoraproject.org/t/f41-change-proposal-default-podman-created-images-to-zstd-chunked-self-contained/125540
+
+# zstd:chunked
 
 従来のコンテナイメージのレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
 これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」に変えて、最後に「そのtarballのどこにどんなファイルが入っているか」の目次(TOC, Table of Contents)の情報を追加したものが、zstd:chunkedです。
