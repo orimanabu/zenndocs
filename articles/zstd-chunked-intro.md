@@ -9,7 +9,7 @@ published: false
 ---
 # はじめに
 
-本記事は、OpenShift Advent Calendar 2024の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで利用できます。本記事ではPodmanでの使用例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
+本記事は、[OpenShift Advent Calendar 2024](https://qiita.com/advent-calendar/2024/openshift)の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで利用できます。本記事ではPodmanでの使用例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
 コンテナイメージはレイヤー構造になっており、各レイヤーは、コンテナで使うファイルシステムツリーをtarでまとめてgzipで圧縮したものです。コンテナイメージをpullするときは、各レイヤーのSHA256のハッシュ値を見て、すでに取得済みであればそれを使い、手元になければコンテナレジストリからダウンロードします。コンテナイメージを扱うに当たって、いくつかの課題点が挙げられます。
 
@@ -20,7 +20,7 @@ published: false
 zstd:chunkedを使うと、これらの課題を解決することができます。
 
 - ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
-- ストレージ消費量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
+- ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
 - メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます (ただしハードリンクを使う場合は注意が必要です、詳しくは後述)。
 
 [^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
@@ -49,7 +49,7 @@ XXX https://discussion.fedoraproject.org/t/f41-change-proposal-default-podman-cr
 
 zstd:chunkedは、tar+zstdのメディアタイプの派生形です。
 
-zstdを定義した[RFC8878の3.1 Frames](https://datatracker.ietf.org/doc/html/rfc8878#name-frames)に次のような記載があります: 
+zstdを定義したRFC8878の[3.1 Frames](https://datatracker.ietf.org/doc/html/rfc8878#name-frames)に次のような記載があります: 
 
 > Zstandard compressed data is made up of one or more frames. Each frame is independent and can be decompressed independently of other frames. The decompressed content of multiple concatenated frames is the concatenation of each frame's decompressed content.
 > 
@@ -58,12 +58,11 @@ zstdを定義した[RFC8878の3.1 Frames](https://datatracker.ietf.org/doc/html/
 つまりzstdには、「個々のファイルをzstdで圧縮したものを連結して、それを伸長すると、もとのファイル群を連結したものになる」という性質があります。
 この性質を活用してコンテナレイヤーをファイル単位で扱えるようにしたのがzstd:chunkedです。
 
-従来のコンテナイメージのレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
-zstdは、これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」に変えて、最後に「そのtarballのどこにどんなファイルが入っているか」の目次(TOC, Table of Contents)の情報を追加したものです。
+zstd:chunkedをサポートしないコンテナランタイムの場合でも、tar+zstdのメディアタイプをサポートしていれば、通常のコンテナイメージとして処理できます。その場合は、ファイル単位のダウンロードはできず、レイヤー単位での処理になります (がzstdの圧縮効率の良さという恩恵は受けることができます)。
 
 ## 余談
 
-gzipにも同じ性質があり、Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstargz-snapshotterがあり、そこで使われているのがeStargzというイメージフォーマットです。
+gzipもzstdと同じく「個々にgzipしたものを連結しても全体をgzipストリームとして扱える」という性質を持ちます。Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstargz-snapshotterがあり、そこで使われているのがeStargzというイメージフォーマットです。
 
 eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
 
