@@ -9,7 +9,7 @@ published: false
 ---
 # はじめに
 
-本記事は、OpenShift Advent Calendar 2024の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで使えます。本記事はPodmanでの例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
+本記事は、OpenShift Advent Calendar 2024の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで利用できます。本記事ではPodmanでの使用例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
 コンテナイメージはレイヤー構造になっており、各レイヤーは、コンテナで使うファイルシステムツリーをtarでまとめてgzipで圧縮したものです。コンテナイメージをpullするときは、各レイヤーのSHA256のハッシュ値を見て、すでに取得済みであればそれを使い、手元になければコンテナレジストリからダウンロードします。コンテナイメージを扱うに当たって、いくつかの課題点が挙げられます。
 
@@ -20,14 +20,14 @@ published: false
 zstd:chunkedを使うと、これらの課題を解決することができます。
 
 - ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
-- ストレージ消費量 → レイヤーをまたがって存在するファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
-- メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます。
+- ストレージ消費量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはサポートするファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
+- メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます (ただしハードリンクを使う場合は注意が必要です、詳しくは後述)。
 
 [^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
 
 # zstdとは
 
-zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、ご存知の方もいらっしゃるかと思いますが、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
+zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
 OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^2]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
@@ -76,13 +76,13 @@ zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与さ�
   - 取得済みの全レイヤーのTOCをチェックし、もしそのファイルが手元にあれば、手元のファイルからハードリンク or reflink or コピーを作成する
   - 手元になければ、HTTP Range Requestを使ってファイル単位でダウンロードする
 
-という流れになります。
+という処理の流れになります。
 
-対象ファイルが取得済みの場合の挙動は、sotrage.confの設定で変えられます。具体的には、
+対象ファイルを取得済みの場合の挙動は、sotrage.confの設定で変えられます。具体的には、
 
 - `use_hard_links = "true"` 設定をしていればハードリンクを作成します
-- use_hard_links設定が"false"であれば、ファイルシステムがreflinkをサポートしていればreflinkを作成します
-- use_hard_links設定が"false"で、かつファイルシステムがreflinkをサポートしていなければ、ファイルのコピーを作成します (この場合はストレージ効率化は行われません)
+- `use_hard_links = "false"` の場合、ファイルシステムがreflinkをサポートしていればreflinkを作成します
+- `use_hard_links = "false"` で、かつファイルシステムがreflinkをサポートしていなければ、ファイルのコピーを作成します (この場合はストレージ効率化は行われません)
 
 メモリ消費の効率化を実現するためには、ハードリンクを使う必要があります。reflinkの場合、ファイルデータを共有するコピー元とコピー先のファイルのi-nodeが異なるため、カーネル(のVFSサブシステム)は同じファイルと認識できません。そのため、それらのファイルを読み込む際は、カーネルは別々のファイルとしてメモリにロードします。
 
@@ -91,16 +91,16 @@ zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与さ�
 - ハードリンクを作成したファイル間で、i-nodeのメタデータ情報が同じになる (atime, mtime, ctime等)
 - ファイルのリンクカウントが増える
 
-という挙動になるため、元のイメージのメタデータ情報を完全には再現できないためです。ファイルの同一性をSHA256のハッシュ値のみで判断しているのでしょうがないのですが...
+という挙動になり、元のイメージのメタデータ情報を完全には再現できないためです。ファイルの同一性をSHA256のハッシュ値のみで判断しているのでしょうがないのですが...
 
 
 # 動作確認
 
 ## 準備
 
-準備として、「ほとんど同じだけど一部だけファイルの異なるコンテナイメージ」を複数用意します。
+zstd:chunkedの効果を確認するため、「ほとんど同じだけど一部だけファイルの異なるコンテナイメージ」を複数用意します。
 
-具体的には、
+具体的には、index.htmlだけが異なるApache httpdが入ったコンテナイメージを10個作ります。
 
 ```Dockerfile
 FROM fedora:41
@@ -116,16 +116,18 @@ CMD ["httpd", "-D", "FOREGROUND"]
 
 というDockerfileに対して
 
-```
+```sh
 for i in $(seq 0 9); do
     podman build . -t quay.io/manabu.ori/myhttpd:c${i} --build-arg N=${i} --squash-all
-    podman push quay.io/manabu.ori/myhttpd:c${i}
+    podman push --compression-format=zstd:chunked quay.io/manabu.ori/myhttpd:c${i}
 done
 ```
 
-で10個作成しました。zstd:chunkedの効果をわかりやすくするため、ビルド時に `--squash-all` をつけて、ベースイメージ含め全部を1個のレイヤーに押し込めています。
+で10個作成しました。zstd:chunkedの効果をわかりやすくするため、ビルド時に `--squash-all` をつけて、ベースイメージ含め全てを1個のレイヤーに押し込めています。
+push時に `--compression-format=zstd:chunked` をつけると、zstd:chunkedフォーマットでイメージをpushできます。
 
-## reflink使用時の動き (xfs使用時)
+
+## reflink使用時の動き (xfsの場合)
 
 ### 設定
 
@@ -165,6 +167,8 @@ $ find ~/.local/share/containers/storage/overlay -type f
 
 ### 1個目のイメージ取得
 
+1個目のイメージ(タグ `c0`)をpullします。
+
 ```
 $ podman pull quay.io/manabu.ori/myhttpd:c0
 Trying to pull quay.io/manabu.ori/myhttpd:c0...
@@ -175,7 +179,8 @@ Writing manifest to image destination
 284abe58dc8218d85fa8c7d5b111149b8b57061fb2d89ca2130d44c70f6199bb
 ```
 
-(xfs)
+後で比較するため、filefragコマンドで/bin/lsのファイルデータの共有状況を確認しておきます (現時点ではファイルデータを他のファイルと共有していません)
+
 ```
 $ filefrag -ek ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
 Filesystem type is: 58465342
@@ -187,6 +192,8 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 
 ### 2個目のイメージ取得
 
+レイヤーの97.87%をスキップし、必要なチャンクのみダウンロードしたことがわかります。
+
 ```
 $ podman pull quay.io/manabu.ori/myhttpd:c1
 Trying to pull quay.io/manabu.ori/myhttpd:c1...
@@ -197,7 +204,7 @@ Writing manifest to image destination
 9abebd0ec4a754fb65e2ab985c89b71b9fa339a23606e0288d6526e78a4d47dd
 ```
 
-ほとんどのファイルをスキップし、必要なチャンクのみダウンロードしたことがわかります。
+reflink copyしているため、ファイルデータは同じファイルでも、i-node番号が異なります。
 
 ```
 $ ls -i ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
@@ -206,7 +213,7 @@ $ ls -i ~/.local/share/containers/storage/overlay/c66d4f5eccdb07b29d460fa0c23af7
 7309808 /home/ori/.local/share/containers/storage/overlay/c66d4f5eccdb07b29d460fa0c23af76e222a9ae97aca9134ac55370e4c466130/diff/usr/bin/ls
 ```
 
-reflink copyしているため、同じファイルでもi-node番号が異なります。
+filefragの出力を見ると、`flags` カラムに `shared` が含まれることから、ファイルデータが他のファイルと共有されていることがわかります。
 
 ```
 $ filefrag -ek ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
@@ -218,9 +225,11 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls: 2 extents found
 ```
 
-filefragの出力で、`flags` カラムに `shared` が含まれることから、ファイルデータが他と共有されていることがわかります。
+reflinkの場合、普通に `du` コマンドで見ても、データを共有しているかはわからないので注意が必要です。
 
-## reflink使用時の動き (btrfs使用時)
+## reflink使用時の動き (btrfsの場合)
+
+同じように、btrfsを使った場合にタグ `c0` と `c1` の2つをpullします。filefragコマンドの `flags` カラムの見え方がxfsのときと少し異なりますが、`shared` があるのでreflinkでデータを共有できていることがわかります。
 
 ```
 $ filefrag -ek ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
@@ -232,7 +241,7 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls: 2 extents found
 ```
 
-filefragコマンドの `flags` カラムの見え方がxfsのときと少し異なります。
+btrfsの場合は、`btrfs filesystem du` コマンドで、reflinkによるファイルデータの共有具合を確認することができます (`Set shared` カラム)。
 
 ```
 $ sudo btrfs filesystem du -s ~/.local/share/containers/storage/overlay/*
@@ -242,8 +251,6 @@ $ sudo btrfs filesystem du -s ~/.local/share/containers/storage/overlay/*
      0.00B       0.00B       0.00B  /home/ori/.local/share/containers/storage/overlay/l
      0.00B       0.00B       0.00B  /home/ori/.local/share/containers/storage/overlay/staging
 ```
-
-btrfsの場合は、`du` 的なコマンドで、reflinkによるファイルデータの共有具合を確認することもできます。
 
 ## ハードリンク使用時の動き
 
@@ -316,7 +323,7 @@ $ ls -i ~/.local/share/containers/storage/overlay/*/diff/usr/bin/ls
 
 ### メモリ使用量の確認
 
-コンテナを10個起動します (結果をわかりやすくするため、entrypointをsleepコマンドにしました)。
+コンテナを10個起動します (結果をわかりやすくするため、entrypointをsleepコマンドにしました。httpdはforkしたりするので...)。
 
 ```
 $ for i in $(seq 0 9); do ((port = i + 9000)); podman run --name myhttpd-c${i} --rm -d -p ${port}:80 quay.io/manabu.ori/myhttpd:c${i} sleep infinity; done
@@ -341,7 +348,7 @@ $ smem -t -P '^sleep'
    10 1                                           0      980     2638    16132
 ```
 
-reflink使用時の場合は下記のようになります。
+ちなみにreflink使用時の場合は下記のようになります。
 
 ```
 $ smem -t -P '^sleep'
@@ -360,7 +367,7 @@ $ smem -t -P '^sleep'
    10 1                                           0    15460    15460    15540
 ```
 
-ハードリンク使用時は、ページキャッシュの共有が効いて、メモリ使用量が抑えられていることがわかります。
+ハードリンク使用時はページキャッシュの共有が効いており、メモリ使用量が抑えられていることがわかります。
 
 # 参考文献
 - Red Hat Blog: [Pull container images faster with partial pulls](https://www.redhat.com/en/blog/faster-container-image-pulls)
