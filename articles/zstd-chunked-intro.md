@@ -11,19 +11,15 @@ published: false
 
 本記事は、OpenShift Advent Calendar 2024の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで使えます。本記事はPodmanでの例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
-レイヤー単位の重複排除を意識してDockerfileを書く必要がなくなる (`--squash-all` してベースイメージ含めてひとつのレイヤーに押し込めても大丈夫)
-過去にpull済みのファイルは再度取得する必要はない
-複数レイヤーに存在する同一ファイルは、ひとつ分しかストレージ容量を消費しない
-複数レイヤー(もしくはコンテナ)に存在する、read-onlyファイルは、メモリ上に一度しかmapされない
-
-zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、ご存知の方もいらっしゃるかと思いますが、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなどのLinuxディストリビューションでは、パッケージの圧縮にも使われています。
+zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、ご存知の方もいらっしゃるかと思いますが、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
 zstdはコンテナイメージのメディアタイプとしても使うことができます。従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` が2019年8月にOCI Image Specで定義され[^1]、代表的なコンテナレジストリ、コンテナエンジン含む関連ツールで使用できます。
-`application/zstd` のMIME Media TypeはOCI image specに入っており、zstd圧縮形式のコンテナイメージは今はほとんどのコンテナレジストリで使えるはずです(少なくともdocker.ioおよびquay.ioでは使えます)。
+
+? `application/zstd` のMIME Media TypeはOCI image specに入っており、zstd圧縮形式のコンテナイメージは今はほとんどのコンテナレジストリで使えるはずです(少なくともdocker.ioおよびquay.ioでは使えます)。
 
 [^1]: https://github.com/opencontainers/image-spec/pull/788
 
-従来のコンテナイメージにレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
+従来のコンテナイメージのレイヤーは、ファイルシステムのツリー(のサブセット)をtarでまとめてgzipで圧縮したものです。
 これを「個々のファイルをzstd(もしくはgzip)で圧縮してtarでまとめたもの」に変えて、最後に「そのtarballのどこにどんなファイルが入っているか」の目次(TOC, Table of Contents)の情報を追加したものが、zstd:chunkedです。
 
 containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstarga-snapshotterがあり、そこでeStargzというイメージフォーマットが使われています。eStargzも「個々のファイルをgzipで圧縮してtarでまとめたもの」にTOC情報をつけたコンテナイメージフォーマットです。
@@ -60,7 +56,7 @@ containers/storageライブラリのzstd:chunked設定はさらに一歩進ん�
 zstd:chunkedは新しいコンテナイメージレイヤーのフォーマットです。eStargzと同じく、[Google CRFS](https://github.com/google/crfs)をベースとして考案されました。またxxxなど、いくつかの考え方や実装はeStargzを参考にしています。
 
 zstd:chunkedのメタデータをアポートしないコンテナランタイムにとっては、通常のzstd圧縮のレイヤーとして見えます。
-zstdのレイヤーは、多くのコンテナ周辺ツールですでにサポートされています。
+zstdは、今では多くのコンテナ周辺ツールですでにサポートされています。
 - Moby v23 (2023-02)
 - containerd v1.5 (2021-05)
 - containers/storage (2019-08)
