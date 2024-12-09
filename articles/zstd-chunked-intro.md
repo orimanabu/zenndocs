@@ -9,6 +9,11 @@ published: false
 ---
 # はじめに
 
+TODO:
+
+- zstd:chunkedのデータフォーマットの絵を入れる
+- eStargzの参照情報を載せる
+
 本記事は、[OpenShift Advent Calendar 2024](https://qiita.com/advent-calendar/2024/openshift)の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで利用できます。本記事ではPodmanでの使用例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
 コンテナイメージはレイヤー構造になっており、各レイヤーは、コンテナで使うファイルシステムツリーをtarでまとめてgzipで圧縮したものです。コンテナイメージをpullするときは、各レイヤーのSHA256のハッシュ値を見て、すでに取得済みであればそれを使い、手元になければコンテナレジストリからダウンロードします。コンテナイメージを扱うに当たって、いくつかの課題点が挙げられます。
@@ -17,24 +22,36 @@ published: false
 - ストレージ使用量: 重複排除の単位はレイヤーであるため、同一のファイルが異なる複数のレイヤーに存在する場合があります。
 - メモリ使用量: 中身が同じファイルが異なるレイヤーに存在する場合、カーネルがそれらをロードした際、別々にマッピングするため、余分なメモリを消費します。
 
-zstd:chunkedを使うと、これらの課題を解決することができます。
+zstd:chunkedを使うと、これらの課題に対して、ある程度対処することができます。
 
 - ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
-- ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (reflinkが使えるかはファイルシステムによる、ハードリンクは設定が必要、どちらも使えない場合は通常のファイルコピーをします)
+- ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (ハードリンクを使う場合は設定が必要でかつ注意が必要です(詳しくは後述)、reflinkが使えるかはファイルシステムによります、どちらも使えない場合は通常のファイルコピーをします)
 - メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます (ただしハードリンクを使う場合は注意が必要です、詳しくは後述)。
+
+Fedoraではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Beta[^4]でも、zstd:chunkedがTechPreviewで使えるようになりました。
 
 [^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
 
+[^2]: zstd:chunkedをデフォルト設定にするかどうかで二転三転してますが... https://fedoraproject.org/wiki/Changes/zstd:chunked
+
+[^3]: RHEL 9.5 Release Notes: [Pushing and pulling images compressed with zstd:chunked is available as a Technology Preview](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html-single/9.5_release_notes/index#Jira-RHEL-32267)
+
+[^4]: RHEL 10.0 Beta Release Notes: [Pushing and pulling images compressed with zstd:chunked is available as a Technology Preview](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10-beta/html-single/10.0_beta_release_notes/index#Jira-RHEL-32266)
+
 # zstdとは
 
-zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
+zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮効率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
 OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^2]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
 - Moby v23 (2023-02)
 - containerd v1.5 (2021-05)
 - containers/storage (2019-08)
+- containers/image v4.0.0 (2019-10)
+- Podman v1.7.0 (2020-01)
 - CRI-O (2020-02)
+
+zstd:chunked
 
 コンテナレジストリに関しても、おそらくだいたい使える状態なのではないかと思います (docker.io、quay.ioでは使えます)。
 
@@ -60,6 +77,11 @@ zstdを定義したRFC8878の[3.1 Frames](https://datatracker.ietf.org/doc/html/
 
 zstd:chunkedをサポートしないコンテナランタイムの場合でも、tar+zstdのメディアタイプをサポートしていれば、通常のコンテナイメージとして処理できます。その場合は、ファイル単位のダウンロードはできず、レイヤー単位での処理になります (がzstdの圧縮効率の良さという恩恵は受けることができます)。
 
+- containers/storage v1.31.0 (2021-05)
+- containers/image v5.14.0 (2021-07)
+- Podman v3.3.0 (2021-08)
+- CRI-O v1.22.0 (2021-08)
+
 ## 余談
 
 gzipもzstdと同じく「個々にgzipしたものを連結しても全体をgzipストリームとして扱える」という性質を持ちます。Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstargz-snapshotterがあり、そこで使われているのがeStargzというイメージフォーマットです。
@@ -80,12 +102,6 @@ zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与さ�
 
 という処理の流れになります。
 
-対象ファイルを取得済みの場合の挙動は、sotrage.confの設定で変えられます。具体的には、
-
-- `use_hard_links = "true"` 設定をしていればハードリンクを作成します
-- `use_hard_links = "false"` の場合、ファイルシステムがreflinkをサポートしていればreflinkを作成します
-- `use_hard_links = "false"` で、かつファイルシステムがreflinkをサポートしていなければ、ファイルのコピーを作成します (この場合はストレージ効率化は行われません)
-
 メモリ消費の効率化を実現するためには、ハードリンクを使う必要があります。reflinkの場合、ファイルデータを共有するコピー元とコピー先のファイルのi-nodeが異なるため、カーネル(のVFSサブシステム)は同じファイルと認識できません。そのため、それらのファイルを読み込む際は、カーネルは別々のファイルとしてメモリにロードします。
 
 一方で、ハードリンクを使うにあたっては注意が必要です。具体的には、ハードリンクを使った場合は
@@ -100,7 +116,7 @@ zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与さ�
 
 ## 準備
 
-zstd:chunkedの効果を確認するため、「ほとんど同じだけど一部だけファイルの異なるコンテナイメージ」を複数用意します。
+zstd:chunkedの効果を確認するため、「ほとんど同じだけど一部だけファイルデータの異なるコンテナイメージ」を複数用意します。
 
 具体的には、index.htmlだけが異なるApache httpdが入ったコンテナイメージを10個作ります。
 
@@ -126,7 +142,7 @@ done
 ```
 
 で10個作成しました。zstd:chunkedの効果をわかりやすくするため、ビルド時に `--squash-all` をつけて、ベースイメージ含め全てを1個のレイヤーに押し込めています。
-push時に `--compression-format=zstd:chunked` をつけると、zstd:chunkedフォーマットでイメージをpushできます。
+push時に `--compression-format=zstd:chunked` をつけると、zstd:chunkedフォーマットでイメージをpushします。
 
 
 ## reflink使用時の動き (xfsの場合)
@@ -143,14 +159,6 @@ pull_options = {enable_partial_images = "true", use_hard_links = "false", ostree
 
 `enable_partial_images = "true"` でzstd:chunkedを有効にします。
 以下では `use_hard_links = "false"` にし、reflinkを使う設定のときの動きを見てみます。
-
-```ini
-containers.conf
-[engine]
-#add_compression = ["gzip", "zstd", "zstd:chunked"]
-#compression_format = "gzip"
-#compression_level = 5
-```
 
 ### 初期化
 
@@ -194,7 +202,7 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 
 ### 2個目のイメージ取得
 
-レイヤーの97.87%をスキップし、必要なチャンクのみダウンロードしたことがわかります。
+`c1` タグのレイヤーをpullすると、レイヤーの97.87%をスキップし、必要なチャンクのみダウンロードしたことがわかります。
 
 ```
 $ podman pull quay.io/manabu.ori/myhttpd:c1
@@ -206,7 +214,7 @@ Writing manifest to image destination
 9abebd0ec4a754fb65e2ab985c89b71b9fa339a23606e0288d6526e78a4d47dd
 ```
 
-reflink copyしているため、ファイルデータは同じファイルでも、i-node番号が異なります。
+reflinkを作っているため、ファイルデータは同じファイルでも、i-node番号が異なります。
 
 ```
 $ ls -i ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
