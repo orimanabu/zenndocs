@@ -42,6 +42,13 @@ Fedoraではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Be
 
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮効率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
+![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/CSpeed2.png)
+*Compression Speed vs Ratio (cited from https://facebook.github.io/zstd/)*
+
+![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/DSpeed3.png)
+*Decompression Speed (cited from https://facebook.github.io/zstd/)*
+
+
 OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^5]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
 - Moby v23 (2023-02)
