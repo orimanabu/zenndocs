@@ -1,5 +1,5 @@
 ---
-title: "ファイル単位で重複排除できるコンテナイメージフォーマットzstd:chunkedの紹介"
+title: "ファイル単位で重複排除できるコンテナイメージフォーマットzstd:chunked"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
