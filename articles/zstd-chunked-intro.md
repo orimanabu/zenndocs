@@ -42,15 +42,11 @@ FedoraのPodmanではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]およ�
 
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮効率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
-|||
-|---|---|
-|
 ![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/CSpeed2.png)
 *Compression Speed vs Ratio (cited from https://facebook.github.io/zstd/)*
-|
+
 ![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/DSpeed3.png)
 *Decompression Speed (cited from https://facebook.github.io/zstd/)*
-|
 
 OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^5]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
@@ -80,6 +76,8 @@ zstdを定義したRFC8878の[3.1 Frames](https://datatracker.ietf.org/doc/html/
 
 zstd:chunkedをサポートしないコンテナランタイムの場合でも、tar+zstdのメディアタイプをサポートしていれば、通常のコンテナイメージとして処理できます。その場合は、ファイル単位のダウンロードはできず、レイヤー単位での処理になります (がzstdの圧縮効率の良さという恩恵は受けることができます)。
 
+zstd:chunkedは下記のバージョンから使えます。
+
 - containers/storage v1.31.0 (2021-05)
 - containers/image v5.14.0 (2021-07)
 - Podman v3.3.0 (2021-08)
@@ -87,7 +85,13 @@ zstd:chunkedをサポートしないコンテナランタイムの場合でも�
 
 ## 余談
 
-gzipもzstdと同じく「個々にgzipしたものを連結しても全体をgzipストリームとして扱える」という性質を持ちます。Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつにstargz-snapshotterがあり、そこで使われているのがeStargzというイメージフォーマットです。
+gzipもzstdと同じく「個々にgzipしたものを連結しても全体をgzipストリームとして扱える」という性質を持ちます。Googleの[CRFS(Container Registry Filesystem)](https://github.com/google/crfs)というプロジェクトで、この性質を使ったStargz (Seekable tar.gz)というフォーマットが提案されました。zstd:chunkedはCRFSをもとに、zstd圧縮フォーマットを使って実装した機能です。同じ考え方でtar+gzのメディアタイプに対してファイル単位でのレイヤーの取り扱いおよびlazy pullingを実現したのがeStargzです。containerdのsnapshotter(コンテナで使用するファイルシステムのライフサイクルを管理するコンポーネント)のひとつに[stargz-snapshotter](https://github.com/containerd/stargz-snapshotter)があり、そこで使われているのがeStargzというイメージフォーマットです。
+
+eStargzについては下記資料をご参照ください。
+- [eStargzイメージとlazy pullingによる高速なコンテナ起動](https://www.slideshare.net/slideshow/estargzlazy-pulling/251120328)
+- [Startup Containers in Lightning Speed with Lazy Image Distribution](https://www.slideshare.net/slideshow/startup-containers-in-lightning-speed-with-lazy-image-distribution/238069287)
+- [Starting up Containers Super Fast With Lazy Pulling of Images](https://www.slideshare.net/slideshow/starting-up-containers-super-fast-with-lazy-pulling-of-images/244154126)
+- [Speeding Up Pulling Container Images on a Variety of Tools with eStargz](https://medium.com/nttlabs/lazy-pulling-estargz-ef35812d73de)
 
 eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
 
@@ -95,6 +99,10 @@ eStargzではtar+zstdも扱えます(zstdでのlazy pullingもできます)。
 Podmanからstargz-snapshotterをAdditionalxxxとして利用することで、Podmanからlazy pullingを利用することもできます。
 
 # zstd:chunkedの動き
+
+zstd:chunkedのレイヤーフォーマットは下図のようになります (図は[PR#775](https://github.com/containers/storage/pull/775)から引用)。
+
+![](https://user-images.githubusercontent.com/67430/102198255-73a98880-3ec2-11eb-9e05-93396e20ff6c.png)
 
 zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与されています。レイヤーをpullするときは、
 
