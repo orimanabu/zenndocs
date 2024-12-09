@@ -3,7 +3,7 @@ title: "コンテナイメージレイヤーをまたいでファイル単位で
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
-published: false
+published: true
 ---
 # はじめに
 
@@ -15,7 +15,7 @@ published: false
 - ストレージ使用量: 重複排除の単位はレイヤーであるため、同一のファイルが異なる複数のレイヤーに存在する場合があります。
 - メモリ使用量: 中身が同じファイルが異なるレイヤーに存在する場合、カーネルがそれらをロードした際、別々にマッピングするため、余分なメモリを消費します。
 
-zstd:chunkedを使うと、これらの課題に対して対処することができます。
+zstd:chunkedを使うと、これらの課題に対して以下のようにいい感じに対処することができます。
 
 - ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル(もしくは一定サイズのチャンク)単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
 - ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (ハードリンクを使う場合は設定が必要でかつ注意が必要です(詳しくは後述)、reflinkが使えるかはファイルシステムによります、どちらも使えない場合は通常のファイルコピーをします)
@@ -202,7 +202,7 @@ user	0m2.785s
 sys	0m1.015s
 ```
 
-後で比較するため、filefragコマンドで/bin/lsのファイルデータの共有状況を確認しておきます (現時点ではファイルデータを他のファイルと共有していません)
+後で比較するため、filefragコマンドで/bin/lsのファイルデータの共有状況を確認しておきます (`flags` カラムに `shared` という表示がないため、現時点ではファイルデータを他のファイルと共有していません)。
 
 ```
 $ filefrag -ek ~/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls
@@ -252,7 +252,7 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec1d03b8d81b9cd92f0ffcf987d31c2b7ef1f0f5205777d77/diff/usr/bin/ls: 2 extents found
 ```
 
-reflinkの場合、普通に `du` コマンドで見ても、データを共有しているかはわからないので注意が必要です。
+reflinkの場合、`du` コマンドで見ても、データを共有しているかはわからないので注意が必要です。
 
 ## reflink使用時の動き (btrfsの場合)
 
@@ -398,3 +398,4 @@ $ smem -t -P '^sleep'
 
 # 参考文献
 - Red Hat Blog: [Pull container images faster with partial pulls](https://www.redhat.com/en/blog/faster-container-image-pulls)
+- [Enable zstd:chunked support in containers/image #775](https://github.com/containers/storage/pull/775)
