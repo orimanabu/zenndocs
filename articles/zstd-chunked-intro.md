@@ -1,6 +1,4 @@
 ---
-title: "Podmanのコンテナイメージはファイル単位で重複排除ができるようになりました"
-title: "pullしたコンテナイメージをファイル単位で重複排除するzstd:chunkedの紹介"
 title: "コンテナイメージレイヤーをまたいでファイル単位で重複排除するイメージフォーマットzstd:chunkedの紹介"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
@@ -19,7 +17,7 @@ published: false
 
 zstd:chunkedを使うと、これらの課題に対して対処することができます。
 
-- ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
+- ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル(もしくは一定サイズのチャンク)単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
 - ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (ハードリンクを使う場合は設定が必要でかつ注意が必要です(詳しくは後述)、reflinkが使えるかはファイルシステムによります、どちらも使えない場合は通常のファイルコピーをします)
 - メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます (ただしハードリンクを使う場合は注意が必要です、詳しくは後述)。
 
@@ -90,8 +88,13 @@ eStargzについては下記資料をご参照ください。
 
 eStargzはlazy pulling (ファイル単位で必要になったタイミングでpullする) が大きな特徴のひとつですが、containers/storageライブラリのzstd:chunked自体にはlazy pullingの機能はありません。
 
-eStargzではtar+zstdも扱えます(zstdでのlazy pullingもできます)。
-Podmanからstargz-snapshotterをAdditionalxxxとして利用することで、Podmanからlazy pullingを利用することもできます。
+eStargzではtar+zstdも扱えます(zstdでのlazy pullingもできます)[^6]。
+Podmanからstargz-snapshotterをAdditional Layer Storeとして利用することで、Podmanからlazy pullingを利用することもできます[^7][^8][^9]。
+
+[^6]: https://github.com/containerd/stargz-snapshotter/pull/293
+[^7]: https://github.com/containerd/stargz-snapshotter/pull/301
+[^8]: https://github.com/containers/image/pull/1109
+[^9]: https://github.com/containers/storage/pull/795
 
 # zstd:chunkedの動き
 
@@ -99,7 +102,7 @@ zstd:chunkedのレイヤーフォーマットは下図のようになります (
 
 ![](https://user-images.githubusercontent.com/67430/102198255-73a98880-3ec2-11eb-9e05-93396e20ff6c.png)
 
-zstd:chunkedでは、コンテナレイヤーの末尾にTOC情報が付与されています。レイヤーをpullするときは、
+zstd:chunkedでは、コンテナレイヤーの末尾にTOC (Table of Contents) 等のメタデータ情報が付与されています。レイヤーをpullするときは、
 
 1. まずTOC情報をダウンロードする。TOCのオフセットはimage manifestのアノテーションに記載されている
 2. TOCにリストされたレイヤー内のファイルごとに、
