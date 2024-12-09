@@ -28,7 +28,7 @@ zstd:chunkedを使うと、これらの課題に対して、ある程度対処�
 - ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (ハードリンクを使う場合は設定が必要でかつ注意が必要です(詳しくは後述)、reflinkが使えるかはファイルシステムによります、どちらも使えない場合は通常のファイルコピーをします)
 - メモリ使用量: レイヤーをまたがって存在するファイルをハードリンクにした場合、カーネルは、それらが同一ファイルであるとわかるため、メモリマッピングは一度で済みます (ただしハードリンクを使う場合は注意が必要です、詳しくは後述)。
 
-Fedoraではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Beta[^4]でも、zstd:chunkedがTechPreviewで使えるようになりました。
+FedoraのPodmanではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Beta[^4]でも、TechPreviewですがPodmanでzstd:chunkedが使えるようになりました。
 
 [^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
 
@@ -42,12 +42,13 @@ Fedoraではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Be
 
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮効率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
+<p>
 ![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/CSpeed2.png)
 *Compression Speed vs Ratio (cited from https://facebook.github.io/zstd/)*
 
 ![](https://raw.githubusercontent.com/facebook/zstd/v1.3.4/doc/images/DSpeed3.png)
 *Decompression Speed (cited from https://facebook.github.io/zstd/)*
-
+</p>
 
 OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^5]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
@@ -57,8 +58,6 @@ OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+g
 - containers/image v4.0.0 (2019-10)
 - Podman v1.7.0 (2020-01)
 - CRI-O (2020-02)
-
-zstd:chunked
 
 コンテナレジストリに関しても、おそらくだいたい使える状態なのではないかと思います (docker.io、quay.ioでは使えます)。
 
