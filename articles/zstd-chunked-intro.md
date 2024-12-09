@@ -42,7 +42,7 @@ Fedoraではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Be
 
 zstd:chunkedの「zstd ([Zstandard](https://facebook.github.io/zstd/))」は、圧縮フォーマットのひとつです。Metaの人が中心となって開発し、RFC8478/8878で規格化されています。zstdは、圧縮効率に関してはzipやgzipと比べると同等以上でxzと比べると多少悪い(圧縮レベルにもよりますが)、でも圧縮/展開のスピードは圧倒的に速い、という特徴を持ちます。FedoraやUbuntuなど、パッケージの圧縮アルゴリズムにzstdを採用しているのLinuxディストリビューションもあります。
 
-OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^2]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
+OCI Image Specにおいて、従来の `application/vnd.oci.image.layer.v1.tar+gzip` に加えて、zstdで圧縮する `application/vnd.oci.image.layer.v1.tar+zstd` がコンテナイメージのメディアタイプとして2019年8月に追加されました[^5]。それにともない、代表的なコンテナエンジン/ランタイムは下記バージョンからzstdをサポートしています。
 
 - Moby v23 (2023-02)
 - containerd v1.5 (2021-05)
@@ -55,12 +55,7 @@ zstd:chunked
 
 コンテナレジストリに関しても、おそらくだいたい使える状態なのではないかと思います (docker.io、quay.ioでは使えます)。
 
-[^2]: https://github.com/opencontainers/image-spec/pull/788
-
-XXX Fedoraでコンテナイメージのデフォルトをzstdにしようという提案2024年6月にありましたが、結局rejectされています。
-XXX https://fedoraproject.org/wiki/Changes/zstd:chunked
-XXX https://discussion.fedoraproject.org/t/switch-fedora-container-images-to-support-zstd-chunked-format-by-default/123712
-XXX https://discussion.fedoraproject.org/t/f41-change-proposal-default-podman-created-images-to-zstd-chunked-self-contained/125540
+[^5]: https://github.com/opencontainers/image-spec/pull/788
 
 # zstd:chunkedとは
 
