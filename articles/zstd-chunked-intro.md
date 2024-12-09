@@ -186,13 +186,17 @@ $ find ~/.local/share/containers/storage/overlay -type f
 1個目のイメージ(タグ `c0`)をpullします。
 
 ```
-$ podman pull quay.io/manabu.ori/myhttpd:c0
+$ time podman pull quay.io/manabu.ori/myhttpd:c0
 Trying to pull quay.io/manabu.ori/myhttpd:c0...
 Getting image source signatures
 Copying blob 4ca6d99209cf done  81.2MiB / 81.2MiB (skipped: 42.4KiB = 0.05%)
 Copying config ddb744a7a7 done   |
 Writing manifest to image destination
 284abe58dc8218d85fa8c7d5b111149b8b57061fb2d89ca2130d44c70f6199bb
+
+real	0m8.611s
+user	0m2.785s
+sys	0m1.015s
 ```
 
 後で比較するため、filefragコマンドで/bin/lsのファイルデータの共有状況を確認しておきます (現時点ではファイルデータを他のファイルと共有していません)
@@ -208,16 +212,20 @@ File size of /home/ori/.local/share/containers/storage/overlay/09a82655f255757ec
 
 ### 2個目のイメージ取得
 
-`c1` タグのレイヤーをpullすると、レイヤーの97.87%をスキップし、必要なチャンクのみダウンロードしたことがわかります。
+`c1` タグのレイヤーをpullすると、レイヤーの97.87%をスキップし、必要なチャンクのみダウンロードしたことがわかります (この例ではコンテナイメージ自体がそれほど大きくないため、pullにかかった時間自体はそれほど速くなったようには見えませんが...)。
 
 ```
-$ podman pull quay.io/manabu.ori/myhttpd:c1
+$ time podman pull quay.io/manabu.ori/myhttpd:c1
 Trying to pull quay.io/manabu.ori/myhttpd:c1...
 Getting image source signatures
-Copying blob 63df9f9dafda done  81.2MiB / 81.2MiB (skipped: 79.4MiB = 97.87%)  # ← ほとんどのファイルをスキップしている
+Copying blob 63df9f9dafda done  81.2MiB / 81.2MiB (skipped: 79.4MiB = 97.87%)
 Copying config 0ca3f4f445 done   |
 Writing manifest to image destination
 9abebd0ec4a754fb65e2ab985c89b71b9fa339a23606e0288d6526e78a4d47dd
+
+real	0m6.728s
+user	0m0.719s
+sys	0m1.109s
 ```
 
 reflinkを作っているため、ファイルデータは同じファイルでも、i-node番号が異なります。
