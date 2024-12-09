@@ -9,11 +9,6 @@ published: false
 ---
 # はじめに
 
-TODO:
-
-- zstd:chunkedのデータフォーマットの絵を入れる
-- eStargzの参照情報を載せる
-
 本記事は、[OpenShift Advent Calendar 2024](https://qiita.com/advent-calendar/2024/openshift)の12/3の記事で、[containers/storage](https://github.com/containers/storage)ライブラリで実装されている新しいコンテナイメージのフォーマット `zstd:chunked` について紹介します。container/storageの機能なので、コンテナエンジン/ランタイムとしてはPodmanとかCRI-Oで利用できます。本記事ではPodmanでの使用例を挙げますが、CRI-O(およびCRI-Oを使っているOpenShift)でも同じことができます。
 
 コンテナイメージはレイヤー構造になっており、各レイヤーは、コンテナで使うファイルシステムツリーをtarでまとめてgzipで圧縮したものです。コンテナイメージをpullするときは、各レイヤーのSHA256のハッシュ値を見て、すでに取得済みであればそれを使い、手元になければコンテナレジストリからダウンロードします。コンテナイメージを扱うに当たって、いくつかの課題点が挙げられます。
@@ -22,7 +17,7 @@ TODO:
 - ストレージ使用量: 重複排除の単位はレイヤーであるため、同一のファイルが異なる複数のレイヤーに存在する場合があります。
 - メモリ使用量: 中身が同じファイルが異なるレイヤーに存在する場合、カーネルがそれらをロードした際、別々にマッピングするため、余分なメモリを消費します。
 
-zstd:chunkedを使うと、これらの課題に対して、ある程度対処することができます。
+zstd:chunkedを使うと、これらの課題に対して対処することができます。
 
 - ネットワーク負荷 → zstd:chunkedでは、レイヤー単位ではなくレイヤー内のファイル単位でダウンロードできるようになるため、すでにダウンロード済みのファイルをスキップすることでダウンロード時間を短縮できます。
 - ストレージ使用量 → 複数レイヤーに存在する同一内容のファイルは、ハードリンクもしくはreflink[^1]によってひとつ分しかストレージを消費しません (ハードリンクを使う場合は設定が必要でかつ注意が必要です(詳しくは後述)、reflinkが使えるかはファイルシステムによります、どちらも使えない場合は通常のファイルコピーをします)
@@ -30,7 +25,7 @@ zstd:chunkedを使うと、これらの課題に対して、ある程度対処�
 
 FedoraのPodmanではもうzstd:chunkedが使えます[^2]。RHEL 9.5[^3]および10.0 Beta[^4]でも、TechPreviewですがPodmanでzstd:chunkedが使えるようになりました。
 
-[^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。
+[^1]: reflinkとは、複数のファイルで同じデータブロックを共有させるファイルシステムの機能です。この機能により、ファイルのコピーを高速に(一瞬で)行うことができます。ファイルのデータを更新した場合は、ファイルシステムのCoW (Copy on Write)の機能を使って変更部分だけを別ブロックに書きます。reflinkをサポートする代表的なファイルシステムはbtrfsおよびxfsです。そう言えば、最近coreutilsのcpが[デフォルトでreflinkを使えるか試す](https://git.savannah.gnu.org/cgit/coreutils.git/commit/?id=25725f9d41735d176d73a757430739fb71c7d043)ようになりましたね
 
 [^2]: zstd:chunkedをデフォルト設定にするかどうかで二転三転してますが... https://fedoraproject.org/wiki/Changes/zstd:chunked
 
@@ -100,7 +95,7 @@ Podmanからstargz-snapshotterをAdditionalxxxとして利用することで、P
 
 # zstd:chunkedの動き
 
-zstd:chunkedのレイヤーフォーマットは下図のようになります (図は[PR#775](https://github.com/containers/storage/pull/775)から引用)。
+zstd:chunkedのレイヤーフォーマットは下図のようになります (図は[c/storage PR#775](https://github.com/containers/storage/pull/775)から引用)。
 
 ![](https://user-images.githubusercontent.com/67430/102198255-73a98880-3ec2-11eb-9e05-93396e20ff6c.png)
 
