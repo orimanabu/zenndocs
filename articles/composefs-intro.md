@@ -7,34 +7,26 @@ published: false
 ---
 # はじめに
 
+TODO: 機密性 完全性 真正性
+
+情報セキュリティの3要素
+機密性（confidentiality）
+完全性（integrity）
+可用性（availability）
+
+情報セキュリティには、先に紹介した3要素に加えて、新たな4つの新要素があります。
+真正性（Authenticity）
+信頼性（Reliability）
+責任追跡性（Accountability）
+否認防止（non-repudiation）
+
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
-composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (詳細は[こちらの記事](https://zenn.dev/orimanabu/articles/try-rhel-image-mode)もご参照ください)。
+composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (bootcについては以前、下のブログ記事を書きました)。
 
 https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
-先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。これらのツールはこれまでもオープンソースとして開発されてきましたが(Red Hatではない所属の方々からも多くの貢献をいただいています)、今後はより広くコミュニティと関われる
-より幅広い多様なコントリビューションを期待して
-
-Arch Linuxで動くように。
-ArchのgrubがBootLoader Specificationに対応していない
-grub周り
-
-Podman Desktopはなんでrpmで提供しないの？
-Electronの依存関係を全部rpmにすると死ぬ
-
-user expectation
-because they always do things you don't expect them to
-
-高い確率でGitHubリポジトリを移動する可能性がある
-
-コミュニティに支援してほしいところは？ Windows関連なんでも
-
-Mark Russell
-grow our community engagement and encourage more contribution
-コンテナを使った管理対象を従来のアプリケーションからホストOSまで広げたい、アプリコンテナと同じツールでOSも管理できる、コミュニティに受け入れてほしい counton
-Red Hatのスタンスが今後変わるわけではないものの、製品のブランド戦略やビジネス状況とは関係なくこれらのツールが発展していってほしい
-コンテナ中心のインフラ管理、従来のアプリケーションコンテナに加えて、bootcを使ったホストOSをコンテナとして管理する仕組みを作った、
+先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
 
 XXX コンテナの文脈では、composefsは「ファイル単位で重複排除ができるコンテナストレージ」を提供するファイルシステムと言えます。
 XXX 通常のコンテナイメージは、レイヤーごとにSHA256のハッシュ値を計算し、複数のコンテナイメージで同じレイヤーを使用する場合はそのレイヤーを共有することで、イメージレイヤーごとの重複排除を行います。
@@ -48,11 +40,29 @@ XXX composefsを使用すると、より粒度の細かいファイル単位で�
 
 composefsは、いくつかの特徴を持つ新しいファイルシステムです。
 
-典型的なファイルシステムはブロックデバイスをバックエンドに持ちますが、対してcomposefsは通常のread-onlyのファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステムです。
+GitHubのREADMEには
 
-バックエンドとなるファイル群は、「content-addressed backing files」と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, 連想メモリ) が想起される言葉です。MACテーブルやルーティングテーブルの検索をハードウェアで高速処理する。
+> "The reliability of disk images, the flexibility of files"
 
-composefsは、fs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verity自体は、ファイルの中身にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、ファイルシステム全体の改ざん検知ができます。
+と書いてあります。ディスクイメージはtar/zipと比べて、マウントできる、レイアウトがきっちり決まっている、dm-verityを使って改ざんを検知できます。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、fs-verityを使った改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
+
+典型的なファイルシステムはブロックデバイスをマウントしますが、対してcomposefsは通常のread-onlyのファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステム」という言い方もできるかもしれません。
+
+バックエンドとなるファイル群の置き場は、「content-addressed object store」と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
+
+上でも書きましたが、composefsはfs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verity自体はファイルのデータ(中身)にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、メタデータを含めたファイルシステム全体の改ざん検知ができます。
+
+ファイルデータのオブジェクトストアと、ファイルツリー/メタデータのイメージを別に持つことで、
+
+- 複数のファイルシステムで同じ中身を持つファイルがある場合は、ファイルデータをcontent-addressedなオブジェクトストアに1個持つだけで済む
+- ひとつのオブジェクトファイルを、異なるメタデータを持つファイルとして複数のファイルシステムに見せることができる
+
+という利点があります。
+
+
+
+
+RAUCというSteamOSをアップデートする仕組みの中でも、最近composefsを使うようになったようです
 
 # 使い方
 
