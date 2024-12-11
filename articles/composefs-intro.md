@@ -7,9 +7,11 @@ published: false
 ---
 # はじめに
 
-本記事は、OpenShift Advent Calendar 2024の12/11の記事で、composefsというコンテナ環境向けのファイルシステムを紹介します。
+本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
-[composefs](https://github.com/containers/composefs)は、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (詳細は[こちらの記事](https://zenn.dev/orimanabu/articles/try-rhel-image-mode)もご参照ください)。
+composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (詳細は[こちらの記事](https://zenn.dev/orimanabu/articles/try-rhel-image-mode)もご参照ください)。
+
+https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。これらのツールはこれまでもオープンソースとして開発されてきましたが(Red Hatではない所属の方々からも多くの貢献をいただいています)、今後はより広くコミュニティと関われる
 より幅広い多様なコントリビューションを期待して
