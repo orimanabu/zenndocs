@@ -44,23 +44,28 @@ GitHubのREADMEには
 
 > "The reliability of disk images, the flexibility of files"
 
-と書いてあります。ディスクイメージはtar/zipと比べて、マウントできる、レイアウトがきっちり決まっている、dm-verityを使って改ざんを検知できます。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、fs-verityを使った改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
+と書いてあります。ディスクイメージはtar/zipと比べて、マウントできる、レイアウトがきっちり決まっている、dm-verityを使って改ざんを検知できる等、カーネルと連携しやすいという特徴があります。。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
 
-典型的なファイルシステムはブロックデバイスをマウントしますが、対してcomposefsは通常のread-onlyのファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステム」という言い方もできるかもしれません。
+典型的なファイルシステムはブロックデバイスをマウントしますが、composefsはext4やxfsといった通常のファイルシステム上のファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステム」という言い方もできるかもしれません。
 
-バックエンドとなるファイル群の置き場は、「content-addressed object store」と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
+バックエンドとなるファイル群の置き場は、「content-addressed object store」(もしくは「オブジェクトストア」)と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
 
-上でも書きましたが、composefsはfs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verity自体はファイルのデータ(中身)にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、メタデータを含めたファイルシステム全体の改ざん検知ができます。
+composefsは、erofs、overlayfs、fs-verityといったカーネルの機能を組み合わせて使います。具体的には、
+
+- 通常のext4やxfsといったファイルシステム上にオブジェクトストアを作り、そこにSHA256のハッシュ値をファイル名とするファイルコンテンツを配置する
+- ファイルシステムのファイルツリーやメタデータは、erofsのイメージファイルに入れる
+- erofsのイメージファイルとオブジェクトストアをoverlayfsで重ね合わせてマウントする
+
+という動きになります。ファイルのメタデータとデータを別のファイルシステムに持ち、overlayfsで組み合わせる、という機能は、composefsのために開発されました。この辺りの細かい話は後述します。
+
+composefsはfs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verity自体はファイルのデータ(中身)にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、メタデータを含めたファイルシステム全体の改ざん検知ができます。
 
 ファイルデータのオブジェクトストアと、ファイルツリー/メタデータのイメージを別に持つことで、
 
-- 複数のファイルシステムで同じ中身を持つファイルがある場合は、ファイルデータをcontent-addressedなオブジェクトストアに1個持つだけで済む
+- 複数のファイルシステムで同じ中身を持つファイルがある場合は、ファイルデータをcontent-addressedなオブジェクトストアに1個持つだけで済む (ファイル単位の重複排除)
 - ひとつのオブジェクトファイルを、異なるメタデータを持つファイルとして複数のファイルシステムに見せることができる
 
 という利点があります。
-
-
-
 
 RAUCというSteamOSをアップデートする仕組みの中でも、最近composefsを使うようになったようです
 
@@ -79,7 +84,7 @@ rootfs
 2 directories, 3 files
 ```
 
-
+ファイルの中身を適当に詰めます。
 
 ```
 $ python -c 'print("foo.txt" + "_" * 60)' > rootfs/foo.txt
@@ -87,12 +92,13 @@ $ python -c 'print("bar.txt" + "_" * 60)' > rootfs/subdir/bar.txt
 $ echo 'abcde' > rootfs/testfile
 ```
 
+mkcomposefsコマンドを実行します。`--digest-store` オプションでオブジェクトストアを指定し、コマンドライン引数でcomposefsの元となるディレクトリと、メタデータを入れるイメージファイル名を指定します。
 
 ```
 $ mkcomposefs --digest-store=objects rootfs example.cfs
 ```
 
-example.cfsというerofsのイメージファイルと、objectsというディレクトリ配下にいくつかのファイルが作成されます。
+指定したexample.cfsというerofsのイメージファイルと、objectsというディレクトリ配下にいくつかのファイルが作成されます。
 
 ```
 $ file example.cfs
@@ -110,12 +116,14 @@ objects
 3 directories, 2 files
 ```
 
-マウントポイントを作ってマウントします。
+マウントポイントを作ってcomposefsでマウントします。`-o basedir` でオブジェクトストアを指定します。
 
 ```
 $ sudo mkdir -p /mnt/composefs
 $ sudo mount -t composefs -o basedir=objects example.cfs /mnt/composefs
 ```
+
+無事 `/mnt/composefs` にcomposefsでマウントできました。
 
 ```
 $ findmnt -J | jq '.filesystems[].children[] | select(.target == "/mnt/composefs")'
@@ -125,14 +133,6 @@ $ findmnt -J | jq '.filesystems[].children[] | select(.target == "/mnt/composefs
   "fstype": "overlay",
   "options": "ro,relatime,seclabel,lowerdir+=/tmp/.composefs.aONLgi,datadir+=objects,redirect_dir=on,metacopy=on"
 }
-```
-
-mkcomposefsで生成されたerofsのイメージファイルがloopbackマウントされていることがわかります。
-
-```
-$ losetup
-NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                            DIO LOG-SEC
-/dev/loop0         0      0         1  1 /home/ori/work/composefs/example.cfs   1    4096
 ```
 
 /mnt/composefsにはrootfsと同じ内容のファイルが見えます。
@@ -157,7 +157,17 @@ $ cat /mnt/composefs/testfile
 abcde
 ```
 
+mkcomposefsで生成されたerofsのイメージファイルを使って、ループバックデバイスがこっそり作成されています。
+(「erofsでマウントする」という情報はmount.composefsが隠蔽しており、findmntで見てもerofsの情報は出てきません)
+
+```
+$ losetup
+NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                            DIO LOG-SEC
+/dev/loop0         0      0         1  1 /home/ori/work/composefs/example.cfs   1    4096
+```
+
 erofsのイメージファイルもマウントしてみましょう。
+下の例ではループバックデバイスをマウントしていますが、erofsfuseコマンドで、erofsイメージファイルを直接fuseマウントすることもできます。
 
 ```
 $ sudo mkdir -p /mnt/erofs
@@ -247,7 +257,7 @@ foo.txt____________________________________________________________
 
 Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^2]。rootfulで実行する必要があります。
 
-[^2]: たぶん問題はerofsのイメージをloopbackマウントしているところだと思われます。loopbackマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^2]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
@@ -264,7 +274,7 @@ storage.confを編集したら、`sudo podman system reset` を実行してお�
 
 ## コンテナイメージ
 
-Podmanでcomposefsを使用するためには、MIMETypeが `application/vnd.oci.image.layer.v1.tar+zstd` のコンテナイメージを使う必要があります。おそらく世の中にあるベースイメージで使うコンテナイメージでzstdになっているものはほとんどないと思われますが、今のPodmanはデフォルトでzstd:chunkedを使う設定になっていますので、適当に手元でDockerfileを書いてbuild & pushすると、zstdのコンテナイメージとしてレジストリにpushします。以下の例では `quay.io/manabu.ori/myhttpd` を使用します。このイメージはzstdで圧縮したものになっています。
+Podmanでcomposefsを使用するためには、メディアタイプが `application/vnd.oci.image.layer.v1.tar+zstd` のコンテナイメージを使う必要があります。おそらく世の中にあるベースイメージで使うコンテナイメージでzstdになっているものはほとんどないと思われますが、今のPodmanはデフォルトでzstd:chunkedを使う設定になっていますので、適当に手元でDockerfileを書いてbuild & pushすると、zstdのコンテナイメージとしてレジストリにpushします。以下の例では `quay.io/manabu.ori/myhttpd` を使用します。このイメージはzstdで圧縮したものになっています。
 
 ```
 # skopeo inspect docker://quay.io/manabu.ori/myhttpd | jq '.LayersData[]'
@@ -287,7 +297,7 @@ Podmanでcomposefsを使用するためには、MIMETypeが `application/vnd.oci
 podman run --name myhttpd --rm -d -p 8080:80 quay.io/manabu.ori/myhttpd
 ```
 
-loopbackマウントの様子を確認します。
+ループバックマウントの様子を確認します。
 
 ```
 # losetup
