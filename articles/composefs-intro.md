@@ -641,11 +641,15 @@ Current rollback state is native ostree
 
 composefsは、新規のin-kernelな独自ファイルシステムという形で、2022年11月にLKMLに投稿されたRFC patchが起源となります。この後議論を重ねながらv2, v3とパッチが更新されますが、どちらかというとあまりカーネルコミュニティからの賛同は得られませんでした。むしろ新しいファイルシステムを作るよりも、似た機能を持つ既存の仕組み (overlayfs、erofs等) を改良する方がよいのではないか、という意見が出ました。
 
-[[PATCH RFC 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1669631086.git.alexl@redhat.com/)
+- [[PATCH RFC 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1669631086.git.alexl@redhat.com/)
+- [[PATCH v2 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/)
+- [[PATCH v3 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/)
 
-[[PATCH v2 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/)
+https://lore.kernel.org/lkml/cover.1669631086.git.alexl@redhat.com/
 
-[[PATCH v3 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/)
+https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/
+
+https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
@@ -659,6 +663,12 @@ composefsは、新規のin-kernelな独自ファイルシステムという形�
 - [Composefs for integrity protection and data sharing](https://lwn.net/Articles/917097/)
 - [Debating composefs](https://lwn.net/Articles/922851/)
 - [A decision on composefs](https://lwn.net/Articles/933616/)
+
+https://lwn.net/Articles/917097/
+
+https://lwn.net/Articles/922851/
+
+https://lwn.net/Articles/933616/
 
 # 参考文献
 
