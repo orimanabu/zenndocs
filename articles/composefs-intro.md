@@ -7,19 +7,6 @@ published: false
 ---
 # はじめに
 
-TODO: 機密性 完全性 真正性
-
-情報セキュリティの3要素
-機密性（confidentiality）
-完全性（integrity）
-可用性（availability）
-
-情報セキュリティには、先に紹介した3要素に加えて、新たな4つの新要素があります。
-真正性（Authenticity）
-信頼性（Reliability）
-責任追跡性（Accountability）
-否認防止（non-repudiation）
-
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
 composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (bootcについては以前、下のブログ記事を書きました)。
@@ -28,13 +15,9 @@ https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
 
-XXX コンテナの文脈では、composefsは「ファイル単位で重複排除ができるコンテナストレージ」を提供するファイルシステムと言えます。
-XXX 通常のコンテナイメージは、レイヤーごとにSHA256のハッシュ値を計算し、複数のコンテナイメージで同じレイヤーを使用する場合はそのレイヤーを共有することで、イメージレイヤーごとの重複排除を行います。
-XXX composefsを使用すると、より粒度の細かいファイル単位での重複排除行うことができます (複数のレイヤーに同じバイナリが入っている場合、1個分のストレージ容量しか使いません)。
-
 なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、実はcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^1]ということで、ご容赦ください... 
 
-[^1]: 外から見えるJIRAチケットもありました https://issues.redhat.com/browse/COS-2963
+[^1]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
 
 # composefsの機能
 
@@ -67,7 +50,11 @@ composefsはfs-verityを使ってファイルシステム全体の改ざん検�
 
 という利点があります。
 
-RAUCというSteamOSをアップデートする仕組みの中でも、最近composefsを使うようになったようです
+余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^2]。
+
+https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
+
+[^2] https://github.com/rauc/rauc/pull/1500
 
 # 使い方
 
@@ -255,20 +242,20 @@ foo.txt____________________________________________________________
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^2]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^3]。rootfulで実行する必要があります。
 
-[^2]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^3]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^3]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^4]、`/usr/share/containers/storage.conf` を編集する必要があります
 
 の2点に注意してください。
 
-[^3]: PRは出ています https://github.com/containers/storage/pull/1885
+[^4]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -637,7 +624,7 @@ Current booted state is native ostree
 Current rollback state is native ostree
 ```
 
-# 歴史
+# composefsの歴史
 
 composefsは、新規のin-kernelな独自ファイルシステムという形で、2022年11月にLKMLに投稿されたRFC patchが起源となります。この後議論を重ねながらv2, v3とパッチが更新されますが、どちらかというとあまりカーネルコミュニティからの賛同は得られませんでした。むしろ新しいファイルシステムを作るよりも、似た機能を持つ既存の仕組み (overlayfs、erofs等) を改良する方がよいのではないか、という意見が出ました。
 
@@ -650,12 +637,12 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^4]
-- overlayfsでfs-verityのサポート[^5]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^5]
+- overlayfsでfs-verityのサポート[^6]
 があります。
 
-[^4]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^5]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^5]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^6]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
@@ -673,6 +660,6 @@ https://lwn.net/Articles/933616/
   - [Using Composefs in OSTree](https://blogs.gnome.org/alexl/2022/06/02/using-composefs-in-ostree/)
   - [Composefs state of the union](https://blogs.gnome.org/alexl/2023/07/11/composefs-state-of-the-union/)
   - [Announcing composefs 1.0](https://blogs.gnome.org/alexl/2023/09/26/announcing-composefs-1-0/)
-- Giuseppe Scrivano (composefsの開発者の一人、LKMLでの議論に参加している人です) のブログ記事
+- Giuseppe Scrivano (composefsの開発者の一人、LKMLでの議論に参加している人) のブログ記事
   - [composefs - a file system for container images](https://www.scrivano.org/posts/2021-10-26-compose-fs/)
 
