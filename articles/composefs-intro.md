@@ -54,7 +54,7 @@ composefsはfs-verityを使ってファイルシステム全体の改ざん検�
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
 
-[^2] https://github.com/rauc/rauc/pull/1500
+[^2]: https://github.com/rauc/rauc/pull/1500
 
 # 使い方
 
