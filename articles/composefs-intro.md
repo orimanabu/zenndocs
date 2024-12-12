@@ -5,15 +5,11 @@ type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
 published: false
 ---
-RHIVOS fs-verity
-bootcの作文
-podman-bootc
-
 # はじめに
 
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
-composefsは現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、[Universal Blue](https://universal-blue.org/)プロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます[^1]。
+composefsは現在のところ、コンテナストレージおよび[OSTree](https://ostreedev.github.io/ostree/)ベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、[Universal Blue](https://universal-blue.org/)プロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます[^1]。
 
 bootcについては以前、下のブログ記事を書きました。
 
@@ -85,11 +81,11 @@ https://cfp.all-systems-go.io/all-systems-go-2024/talk/HVEZQQ/
 
 [^5]: https://www.youtube.com/watch?v=zx-W2pAq1LE&t=55s
 
-余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^5]。
+余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うことになったようです[^6]。
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
 
-[^5]: https://github.com/rauc/rauc/pull/1500
+[^6]: https://github.com/rauc/rauc/pull/1500
 
 # 使い方
 
@@ -284,20 +280,20 @@ sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/com
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^6]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^7]。rootfulで実行する必要があります。
 
-[^6]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^7]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^7]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^8]、`/usr/share/containers/storage.conf` を編集する必要があります
 
 の2点に注意してください。
 
-[^7]: PRは出ています https://github.com/containers/storage/pull/1885
+[^8]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -357,23 +353,7 @@ NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                              
 }
 ```
 
-実行中のコンテナのoverlayfsマウントのオプションを紐解いてみます。
-
-```
-rw,
-nodev,
-relatime,
-context="system_u:object_r:container_file_t:s0:c699,c861",
-lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/2:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/3:/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/4::/var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff::/var/lib/containers/storage/overlay/157d2a4e319e4f4d6373e76665d4e996b96d06086acc09e415c792dde6b27175/diff::/var/lib/containers/storage/overlay/e175d5fd713e8bf1d99f9a8d2d9f453254b22be9719c39ce13d1c1355d6586e1/diff::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
-upperdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/diff,
-workdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/work,
-redirect_dir=on,
-uuid=on,
-metacopy=on,
-volatile
-```
-
-さらにlowerdirを見やすく整形すると...
+overlayfsマウントのオプションのlowerdirを見やすく整形すると...
 
 ```
 lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1
@@ -386,7 +366,11 @@ lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c
 ::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
 ```
 
-コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています。そのうちの一つを覗いてみましょう。
+コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています[^9]。そのうちの一つを覗いてみましょう。
+
+[^9]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
+
+erofsのイメージを見ると、拡張属性 `trusted.overlay.redirect` にオブジェクトストアのパスが書かれています。
 
 ```
 # mount -oloop /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/composefs-data/composefs.blob /mnt/tmp
@@ -397,6 +381,8 @@ getfattr: Removing leading '/' from absolute path names
 trusted.overlay.metacopy=0sACQAAeG6n0gwFNmWFkJWaUL9QlUwHYFLULh0Z7qRFqFgm3iQ
 trusted.overlay.redirect="/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0cd6ca339b0dea"
 ```
+
+オブジェクトストアのパスをたどると、確かにindex.htmlでした。
 
 ```
 # cat /var/lib/containers/storage/overlay/ed76af94e8a065c5e3d1bf6a8db625cee90947f69624b380eb4a5beb1082d414/diff/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0cd6ca339b0dea
@@ -418,60 +404,55 @@ trusted.overlay.redirect="/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0c
 
 想定ユースケースその2、OSTreeのバックエンドで使うパターンです。
 
-これは少し背景の説明が必要かもしれません。[OSTree](https://ostreedev.github.io/ostree/)は、ファイルシステムをgitのように管理し、ファイルシステムツリーにSHA256 IDをつけ、ファイルシステム全体をアトミックに切り替えられるようにする仕組みです。
+- bootcでOS領域をコンテナイメージにする
+- Fedora CoreOSの2つ
+
+の2つの場合を見てみます (ほとんど同じです)。
 
 ## bootc
+
+libvirtで仮想マシンを作成します。作業の流れとしては
+- `fedora-bootc`というコンテナイメージ(kernel、initramfs、systemd等が入っています)をベースにしたコンテナイメージを作る
+- そのコンテナイメージを元に、`bootc-image-builder` を使ってqcow2の仮想マシンイメージを作成する
+- virt-installで仮想マシンを作成・起動する
+という感じです。
+
+細かい手順は下記をご参照ください。
+
+https://docs.fedoraproject.org/en-US/bootc/getting-started/
+
+[podman-bootc](https://github.com/containers/podman-bootc.git)というヘルパーコマンドがあって、これを使って
 
 ```
 podman-bootc run --filesystem=xfs quay.io/manabu.ori/fedora-bootc-test:41
 ```
 
+みたいな感じで実行すると、上記の「コンテナイメージからqcow2の仮想マシンイメージを作って仮想マシンを起動してsshログインする」を一気に行うことができます。
+
 ```
 # cat /etc/os-release
 NAME="Fedora Linux"
 VERSION="41.20241210.0 (Forty One)"
-RELEASE_TYPE=stable
-ID=fedora
-VERSION_ID=41
-VERSION_CODENAME=""
-PLATFORM_ID="platform:f41"
-PRETTY_NAME="Fedora Linux 41.20241210.0 (Forty One)"
-ANSI_COLOR="0;38;2;60;110;180"
-LOGO=fedora-logo-icon
-CPE_NAME="cpe:/o:fedoraproject:fedora:41"
-DEFAULT_HOSTNAME="fedora"
-HOME_URL="https://fedoraproject.org/"
-DOCUMENTATION_URL="https://docs.fedoraproject.org/en-US/fedora/f41/system-administrators-guide/"
-SUPPORT_URL="https://ask.fedoraproject.org/"
-BUG_REPORT_URL="https://bugzilla.redhat.com/"
-REDHAT_BUGZILLA_PRODUCT="Fedora"
-REDHAT_BUGZILLA_PRODUCT_VERSION=41
-REDHAT_SUPPORT_PRODUCT="Fedora"
-REDHAT_SUPPORT_PRODUCT_VERSION=41
-SUPPORT_END=2025-12-15
+...
 OSTREE_VERSION='41.20241210.0'
 ```
+
+カーネルの起動オプションにostreeのcommitを指定しています。
 
 ```
 # cat /proc/cmdline
 BOOT_IMAGE=(hd0,gpt3)/boot/ostree/default-fb1fef48e415876a4a43c311b1ef3c5ecfea7094e0befb2518c631fca55deeb4/vmlinuz-6.11.10-300.fc41.x86_64 root=UUID=da43332a-c607-45a9-808e-1eaa0ec68ba5 rw ostree=/ostree/boot.1/default/fb1fef48e415876a4a43c311b1ef3c5ecfea7094e0befb2518c631fca55deeb4/0
 ```
 
-```
-# strings /run/ostree-booted
-backing-root-device-inode
-(tt)
-composefs
-root.transient
-sysroot-ro
-6Ld|
-```
+定期的にOS領域のコンテナイメージの更新をチェックし、更新があればpullするサービス `bootc-fetch-apply-updates.timer` が起動しています (手元の環境の事情でfailedになっていますが...)。
 
 ```
 # systemctl | grep -E '(coreos|bootc)-'
 ● bootc-fetch-apply-updates.service                                            loaded failed failed    Apply bootc updates
   bootc-fetch-apply-updates.timer                                              loaded active waiting   Apply bootc updates
 ```
+
+ルートファイルシステムをcomposefsでマウントしています。
 
 ```
 # findmnt -J /
@@ -487,83 +468,34 @@ sysroot-ro
 }
 ```
 
-```
-# losetup
-NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                                                                                                            DIO LOG-SEC
-/dev/loop0         0      0         1  1 /sysroot/ostree/deploy/default/deploy/85dda4cd46c001a4e2c21a3b835a2d1ca9d69a5b6687e5d86b913083783a5594.0/.ostree.cfs   1    4096
-```
-
-```
-# mount -oloop /sysroot/ostree/deploy/default/deploy/85dda4cd46c001a4e2c21a3b835a2d1ca9d69a5b6687e5d86b913083783a5594.0/.ostree.cfs /mnt
-mount: /var/mnt: WARNING: source write-protected, mounted read-only.
-```
-
-```
-# getfattr -d -m - /mnt/usr/share/containers/storage.conf
-getfattr: Removing leading '/' from absolute path names
-# file: mnt/usr/share/containers/storage.conf
-security.selinux="system_u:object_r:usr_t:s0"
-trusted.overlay.metacopy=""
-trusted.overlay.redirect="/65/d4629a8032125b9a43b66d9c1633af34ab953ab1dd30dadfac769c925b03bb.file"
-```
-
-```
-# head -n 10 /sysroot/ostree/repo/objects/65/d4629a8032125b9a43b66d9c1633af34ab953ab1dd30dadfac769c925b03bb.file
-# This file is the configuration file for all tools
-# that use the containers/storage library. The storage.conf file
-# overrides all other storage.conf files. Container engines using the
-# container/storage library do not inherit fields from other storage.conf
-# files.
-#
-#  Note: The storage.conf file overrides other storage.conf files based on this precedence:
-#      /usr/containers/storage.conf
-#      /etc/containers/storage.conf
-#      $HOME/.config/containers/storage.conf
-```
-
-```
-# rpm-ostree status
-State: idle
-Deployments:
-● ostree-unverified-registry:quay.io/manabu.ori/fedora-bootc-test:41
-                   Digest: sha256:cee29d9d76c2fdb1574190878a2c99e1b3fc5bf226680be366bbdcfced874986
-                  Version: 41.20241210.0 (2024-12-10T14:44:30Z)
-```
-
-```
-# bootc status
-No staged image present
-Current booted image: quay.io/manabu.ori/fedora-bootc-test:41
-    Image version: 41.20241210.0 (2024-12-10 14:44:30.660720065 UTC)
-    Image digest: sha256:cee29d9d76c2fdb1574190878a2c99e1b3fc5bf226680be366bbdcfced874986
-No rollback image present
-```
-
-
 ## Fedora CoreOS
+
+下記からqcow2イメージをダウンロードして、適当にignitionファイルを書いて起動します。
+
+https://fedoraproject.org/coreos/download?stream=stable
+
+virt-installはこんな感じです。
+
+```
+sudo virt-install \
+--name=fcos41 \
+--vcpus=2 \
+--memory=4096 \
+--os-variant=fedora-coreos-stable \
+--import \
+--graphics=none \
+--disk="size=20,backing_store=/var/lib/libvirt/images/fcos41.qcow2" \
+--network network=default \
+--qemu-commandline="-fw_cfg name=opt/com.coreos/config,file=$(pwd)test.ign"
+```
+
+ログインして/etc/os-releaseと/proc/cmdlineを見てみます。
 
 ```
 $ cat /etc/os-release
 NAME="Fedora Linux"
 VERSION="41.20241109.3.0 (CoreOS)"
-RELEASE_TYPE=stable
-ID=fedora
-VERSION_ID=41
-VERSION_CODENAME=""
-PLATFORM_ID="platform:f41"
-PRETTY_NAME="Fedora CoreOS 41.20241109.3.0"
-ANSI_COLOR="0;38;2;60;110;180"
-LOGO=fedora-logo-icon
-CPE_NAME="cpe:/o:fedoraproject:fedora:41"
-HOME_URL="https://getfedora.org/coreos/"
-DOCUMENTATION_URL="https://docs.fedoraproject.org/en-US/fedora-coreos/"
-SUPPORT_URL="https://github.com/coreos/fedora-coreos-tracker/"
-BUG_REPORT_URL="https://github.com/coreos/fedora-coreos-tracker/"
-REDHAT_BUGZILLA_PRODUCT="Fedora"
-REDHAT_BUGZILLA_PRODUCT_VERSION=41
-REDHAT_SUPPORT_PRODUCT="Fedora"
-REDHAT_SUPPORT_PRODUCT_VERSION=41
-SUPPORT_END=2025-12-15
+...
 VARIANT="CoreOS"
 VARIANT_ID=coreos
 OSTREE_VERSION='41.20241109.3.0'
@@ -574,24 +506,7 @@ $ cat /proc/cmdline
 BOOT_IMAGE=(hd0,gpt3)/boot/ostree/fedora-coreos-717f957fb4680546cce36bc1c5e633abdbf5e4ecb6e99e5665df3c00a56088fa/vmlinuz-6.11.6-300.fc41.x86_64 rw mitigations=auto,nosmt ostree=/ostree/boot.0/fedora-coreos/717f957fb4680546cce36bc1c5e633abdbf5e4ecb6e99e5665df3c00a56088fa/0 ignition.platform.id=qemu console=tty0 console=ttyS0,115200n8 root=UUID=4828f807-1e7f-419a-88f2-31df1a736fa1 rw rootflags=prjquota boot=UUID=a6192326-87ec-42a5-9653-ae5424995744
 ```
 
-```
-$ strings /run/ostree-booted
-backing-root-device-inode
-(tt)
-composefs
-root.transient
-sysroot-ro
-6Ld|
-```
-
-```
-$ systemctl | grep -E '(coreos|bootc)-'
-  sysroot-ostree-deploy-fedora\x2dcoreos-var.mount                                          loaded active mounted   sysroot-ostree-deploy-fedora\x2dcoreos-var.mount
-  coreos-check-wireless-firmwares.service                                                   loaded active exited    Check For Wireless Firmware Packages
-  coreos-ignition-write-issues.service                                                      loaded active exited    Create Ignition Status Issue Files
-  coreos-platform-chrony-config.service                                                     loaded active exited    CoreOS Configure Chrony Based On The Platform
-  coreos-printk-quiet.service                                                               loaded active exited    CoreOS: Set printk To Level 4 (warn)
-```
+ルートファイルシステムをcomposefsでマウントしています。
 
 ```
 $ findmnt -J /
@@ -607,65 +522,6 @@ $ findmnt -J /
 }
 ```
 
-```
-$ losetup
-NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                                                                                                                  DIO LOG-SEC
-/dev/loop0         0      0         1  1 /sysroot/ostree/deploy/fedora-coreos/deploy/7045de9840da932191086af37d4b21d18afaff6b28bd96457e40da362e12b676.0/.ostree.cfs   1    4096
-```
-
-```
-$ sudo mount -oloop /sysroot/ostree/deploy/fedora-coreos/deploy/7045de9840da932191086af37d4b21d18afaff6b28bd96457e40da362e12b676.0/.ostree.cfs /mnt
-mount: /var/mnt: WARNING: source write-protected, mounted read-only.
-```
-
-```
-$ sudo getfattr -d -m - /mnt/usr/share/containers/storage.conf
-getfattr: Removing leading '/' from absolute path names
-# file: mnt/usr/share/containers/storage.conf
-security.selinux="system_u:object_r:usr_t:s0"
-trusted.overlay.metacopy=""
-trusted.overlay.redirect="/65/d4629a8032125b9a43b66d9c1633af34ab953ab1dd30dadfac769c925b03bb.file"
-```
-
-```
-$ head -n 10 /sysroot/ostree/repo/objects/65/d4629a8032125b9a43b66d9c1633af34ab953ab1dd30dadfac769c925b03bb.file
-# This file is the configuration file for all tools
-# that use the containers/storage library. The storage.conf file
-# overrides all other storage.conf files. Container engines using the
-# container/storage library do not inherit fields from other storage.conf
-# files.
-#
-#  Note: The storage.conf file overrides other storage.conf files based on this precedence:
-#      /usr/containers/storage.conf
-#      /etc/containers/storage.conf
-#      $HOME/.config/containers/storage.conf
-```
-
-```
-$ rpm-ostree status
-State: idle
-AutomaticUpdatesDriver: Zincati
-  DriverState: active; periodically polling for updates (last checked Wed 2024-12-11 05:42:47 UTC)
-Deployments:
-● fedora:fedora/x86_64/coreos/stable
-                  Version: 41.20241109.3.0 (2024-11-25T02:09:37Z)
-               BaseCommit: 870e2c8fd02e81652b30bc9a33b5da9d47de66c8bc2bae0a3739ecf38f652660
-             GPGSignature: Valid signature by 466CF2D8B60BC3057AA9453ED0622462E99D6AD1
-          LayeredPackages: binutils
-
-  fedora:fedora/x86_64/coreos/stable
-                  Version: 41.20241109.3.0 (2024-11-25T02:09:37Z)
-                   Commit: 870e2c8fd02e81652b30bc9a33b5da9d47de66c8bc2bae0a3739ecf38f652660
-             GPGSignature: Valid signature by 466CF2D8B60BC3057AA9453ED0622462E99D6AD1
-```
-
-```
-$ sudo bootc status
-No staged image present
-Current booted state is native ostree
-Current rollback state is native ostree
-```
-
 # composefsの歴史
 
 composefsは、新規のin-kernelな独自ファイルシステムという形で、2022年11月にLKMLに投稿されたRFC patchが起源となります。この後議論を重ねながらv2, v3とパッチが更新されますが、どちらかというとあまりカーネルコミュニティからの賛同は得られませんでした。むしろ新しいファイルシステムを作るよりも、似た機能を持つ既存の仕組み (overlayfs、erofs等) を改良する方がよいのではないか、という意見が出ました。
@@ -679,12 +535,12 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^8]
-- overlayfsでfs-verityのサポート[^9]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^10]
+- overlayfsでfs-verityのサポート[^11]
 があります。
 
-[^8]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^9]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^10]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^11]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
