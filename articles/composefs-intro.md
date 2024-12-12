@@ -44,11 +44,11 @@ GitHubのREADMEには
 
 > "The reliability of disk images, the flexibility of files"
 
-と書いてあります。ディスクイメージはtar/zipと比べて、マウントできる、レイアウトがきっちり決まっている、dm-verityを使って改ざんを検知できる等、カーネルと連携しやすいという特徴があります。。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
+とあります。ディスクイメージはtar/zipと比べて、マウントできる、dm-verityを使って改ざんを検知できる等、カーネルと連携しやすいという特徴があります。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
 
-典型的なファイルシステムはブロックデバイスをマウントしますが、composefsはext4やxfsといった通常のファイルシステム上のファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステム」という言い方もできるかもしれません。
+典型的なファイルシステムはブロックデバイスをマウントしますが、composefsはext4やxfsといった通常のファイルシステム上のファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステムという言い方もできるかもしれません。
 
-バックエンドとなるファイル群の置き場は、「content-addressed object store」(もしくは「オブジェクトストア」)と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
+バックエンドとなるファイル群の置き場は、「content-addressed object store」(もしくは単に「オブジェクトストア」)と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
 
 composefsは、erofs、overlayfs、fs-verityといったカーネルの機能を組み合わせて使います。具体的には、
 
@@ -639,20 +639,22 @@ Current rollback state is native ostree
 
 # 歴史
 
-最初は、新規の独自ファイルシステムという形で、2022年11月に最初のRFC patchがLKMLに投稿されました。この後議論を重ねながらv2, v3とパッチが更新されますが、どちらかというとあまりカーネルコミュニティからの賛同は得られませんでした。むしろ提案されたユースケースであれば、新しいファイルシステムを作るよりも、似た機能を持つ既存の仕組み (overlayfs、erofs等) を改良する方がよいのではないか、という意見が出ました。
+composefsは、新規のin-kernelな独自ファイルシステムという形で、2022年11月にLKMLに投稿されたRFC patchが起源となります。この後議論を重ねながらv2, v3とパッチが更新されますが、どちらかというとあまりカーネルコミュニティからの賛同は得られませんでした。むしろ新しいファイルシステムを作るよりも、似た機能を持つ既存の仕組み (overlayfs、erofs等) を改良する方がよいのではないか、という意見が出ました。
 
-- [[PATCH RFC 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1669631086.git.alexl@redhat.com/)
-- [[PATCH v2 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/)
-- [[PATCH v3 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/)
+[[PATCH RFC 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1669631086.git.alexl@redhat.com/)
 
-その後、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
+[[PATCH v2 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/)
 
-その後、CopmoseFSを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
+[[PATCH v3 0/6] Composefs: an opportunistically sharing verified image filesystem](https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/)
+
+最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
+
+その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
 - overlayfsでmetadata only layerとdata only lower layerを持てるようにする https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
 - overlayfsでfs-verityのサポート https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 があります。
 
-大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
+議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
 - [Composefs for integrity protection and data sharing](https://lwn.net/Articles/917097/)
 - [Debating composefs](https://lwn.net/Articles/922851/)
