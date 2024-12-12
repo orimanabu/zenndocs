@@ -1,5 +1,5 @@
 ---
-title: "コンテナストレージに特化したファイルシステムComposeFSとは"
+title: "コンテナストレージやイメージベースのOSに特化したファイルシステムcomposefsとは"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
@@ -9,13 +9,21 @@ published: false
 
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
-composefsは、現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。「OSTreeベースのOSイメージのリポジトリ」とは、[bootc](https://github.com/containers/bootc)を使ってOSのファイルシステムをコンテナイメージとして管理するときのOSTreeリポジトリ置き場として使うことを意味します (bootcについては以前、下のブログ記事を書きました)。
+composefsは現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、Universal Blueプロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます。
+
+bootcについては以前、下のブログ記事を書きました。
 
 https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
+CoreOS、Atomic Desktop、bootcの違いは、については下記をご参照ください。
+
+https://docs.fedoraproject.org/en-US/bootc/linux-desktops/
+
+https://docs.fedoraproject.org/en-US/bootc/fedora-coreos/
+
 先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
 
-なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、実はcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^1]ということで、ご容赦ください... 
+なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^1]ということで、ご容赦ください... 
 
 [^1]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
 
