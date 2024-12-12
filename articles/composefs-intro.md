@@ -9,23 +9,19 @@ published: false
 
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
-composefsは現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、Universal Blueプロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます。
+composefsは現在のところ、コンテナストレージおよびOSTreeベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、[Universal Blue](https://universal-blue.org/)プロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます[^1]。
 
 bootcについては以前、下のブログ記事を書きました。
 
 https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
-CoreOS、Atomic Desktop、bootcの違いは、については下記をご参照ください。
-
-https://docs.fedoraproject.org/en-US/bootc/linux-desktops/
-
-https://docs.fedoraproject.org/en-US/bootc/fedora-coreos/
+[^1]: CoreOS、Atomic Desktop、bootcの違いについては、こちらをご参照ください: https://docs.fedoraproject.org/en-US/bootc/linux-desktops/ https://docs.fedoraproject.org/en-US/bootc/fedora-coreos/
 
 先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
 
-なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^1]ということで、ご容赦ください... 
+なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
 
-[^1]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
+[^2]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
 
 # composefsの機能
 
@@ -58,11 +54,11 @@ composefsはfs-verityを使ってファイルシステム全体の改ざん検�
 
 という利点があります。
 
-余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^2]。
+余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^3]。
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
 
-[^2]: https://github.com/rauc/rauc/pull/1500
+[^3]: https://github.com/rauc/rauc/pull/1500
 
 # 使い方
 
@@ -250,20 +246,20 @@ foo.txt____________________________________________________________
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^3]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^4]。rootfulで実行する必要があります。
 
-[^3]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^4]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^4]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^5]、`/usr/share/containers/storage.conf` を編集する必要があります
 
 の2点に注意してください。
 
-[^4]: PRは出ています https://github.com/containers/storage/pull/1885
+[^5]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -645,12 +641,12 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^5]
-- overlayfsでfs-verityのサポート[^6]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^6]
+- overlayfsでfs-verityのサポート[^7]
 があります。
 
-[^5]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^6]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^6]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^7]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
