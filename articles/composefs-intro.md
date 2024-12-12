@@ -3,7 +3,7 @@ title: "コンテナストレージやイメージベースのOSに特化した�
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
-published: false
+published: true
 ---
 # はじめに
 
@@ -11,13 +11,13 @@ published: false
 
 composefsは現在のところ、コンテナストレージおよび[OSTree](https://ostreedev.github.io/ostree/)ベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、[Universal Blue](https://universal-blue.org/)プロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます[^1]。
 
-bootcについては以前、下のブログ記事を書きました。
+bootcについては以前ブログ記事を書きました。
 
 https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 [^1]: CoreOS、Atomic Desktop、bootcの違いについては、こちらをご参照ください: https://docs.fedoraproject.org/en-US/bootc/linux-desktops/ https://docs.fedoraproject.org/en-US/bootc/fedora-coreos/
 
-先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
+先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。これらについてもCNCFのプロジェクトとして、より広いコミュニティに使ってほしい、という気持ちではないかと想像します。
 
 なんでOpenShiftとは直接関係のないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
 
@@ -31,9 +31,9 @@ GitHubのREADMEには
 
 > "The reliability of disk images, the flexibility of files"
 
-とあります。ディスクイメージはtar/zipと比べて、マウントできる、dm-verityを使って改ざんを検知できる等、カーネルと連携しやすいという特徴があります。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟性に欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
+とあります。ディスクイメージはtar/zipと比べて、マウントできる、dm-verityを使って改ざんを検知できる等、カーネルと連携しやすいという特徴があります。一方で、必要以上のストレージ容量が必要だったり、取り回しの柔軟さに欠ける傾向があります。composefsは、ファイルベースの実装で柔軟さを維持しつつ、改ざん検知やカーネルによるマウントをサポートするファイルシステムです。
 
-典型的なファイルシステムはブロックデバイスをマウントしますが、composefsはext4やxfsといった通常のファイルシステム上のファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステムという言い方もできるかもしれません。
+典型的なファイルシステムはブロックデバイスをマウントしますが、composefsはext4やxfsといった通常のファイルシステム上のファイルの集合をバックエンドに持ちます。別の言い方をすると、「バックエンドとなる通常のファイルの集合 (＋ファイルツリー/メタデータの情報) に対してcomposefsマウントする」という、ある種のループバックマウントをするファイルシステムという見方もできるかもしれません。
 
 バックエンドとなるファイル群の置き場は、「content-addressed object store」(もしくは単に「オブジェクトストア」)と呼ばれます。content addressedという言葉は、ファイルの内容からファイルを指定できる、という気持ちが込められています。具体的には、バックエンドのファイルは、ファイルの中身のSHA256のハッシュ値がファイル名となります。ネットワーク機器には搭載されているCAM (Content Addressable Memory, MACテーブルやルーティングテーブルの検索をハードウェアで高速処理するやつ) が想起される言葉ですね。
 
@@ -43,7 +43,7 @@ composefsは、erofs、overlayfs、fs-verityといったカーネルの機能を
 - ファイルシステムのファイルツリーやメタデータは、erofsのイメージファイルに入れる
 - erofsのイメージファイルとオブジェクトストアをoverlayfsで重ね合わせてマウントする
 
-という動きになります。ファイルのメタデータとデータを別のファイルシステムに持ち、overlayfsで組み合わせる、という機能は、composefsのために開発されました。この辺りの細かい話は後述します。
+という動きになります。ファイルのメタデータとデータを別のファイルシステムに持ち、overlayfsで組み合わせる、という機能は、composefsのために開発されました。
 
 composefsは、ファイルデータのオブジェクトストアと、ファイルツリー/メタデータのイメージを別に持つことで、
 
@@ -75,13 +75,13 @@ fs/verity/signature.c
 
 現在利用できるコンテナイメージの署名検証は仕組みは、イメージをダウンロードしたときやコンテナ実行時のタイミングで検証するものがほとんどだと思います。composefsの改ざん検知の仕組みは、コンテナ実行中にファイルを改ざんされたとしても検知することができます(fs-verity有効時はファイルが改ざんされるとread自体が失敗するため)。
 
-ファイルの完全性(integrity)をチェックできることは、高い信頼性を要するシステムでは必須の機能です。Red HatはRHIVOSという車載Linuxディストリビューションを開発していますが、その中ではOSTreeベースのファイルシステムを使っています[^5]。ここにcomposefsをかぶせることで、runtime integrityを確保することができます。UKI (Unified Kernel Image)を使ってSecure Bootをし、fs-verityを有効にしたcomposefs+ostreeのファイルシステムで起動することで、ブートローダー、カーネル、initramfs、カーネル起動時のコマンドライン、ファイルシステムの全てをセキュアな状態にすることができます(詳細は以下の講演をご参照ください)。
+ファイルの完全性(integrity)をチェックできることは、高い信頼性を要するシステムでは必須の機能です。Red HatはRHIVOSという車載Linuxディストリビューションを開発していますが、その中ではOSTreeベースのファイルシステムを使っています[^5]。ここにcomposefsをかぶせることで、runtime integrityを確保することができます。[UKI (Unified Kernel Image)](https://github.com/uapi-group/specifications/blob/main/specs/unified_kernel_image.md)を使ってSecure Bootをし、fs-verityを有効にしたcomposefs+ostreeのファイルシステムで起動することで、ブートローダー、カーネル、initramfs、カーネル起動時のコマンドライン、ファイルシステムの全てをセキュアな状態にすることができます(Secure Bootだけだと、ブートローダー、カーネル、カーネルモジュールしか保護の対象になりません)。詳細は以下の講演をご参照ください。
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/HVEZQQ/
 
 [^5]: https://www.youtube.com/watch?v=zx-W2pAq1LE&t=55s
 
-余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うことになったようです[^6]。
+余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc)というOSSプロジェクトでも、composefsを使うことになったようです[^6]。
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
 
@@ -176,7 +176,9 @@ abcde
 ```
 
 mkcomposefsで生成されたerofsのイメージファイルを使って、ループバックデバイスがこっそり作成されています。
-(「erofsでマウントする」という情報はmount.composefsが隠蔽しており、findmntで見てもerofsの情報は出てきません)
+(erofsのマウントポイントは、overlayfsマウントが成功したらunmountしてrmdirしているので[^7]、findmntで見てもerofsの情報は出てきません)
+
+[^7]: https://github.com/containers/composefs/blob/ed3ee0d4530e624df2dbf78977651ce84abb14a2/libcomposefs/lcfs-mount.c#L618
 
 ```
 $ losetup
@@ -280,20 +282,20 @@ sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/com
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^7]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^8]。rootfulで実行する必要があります。
 
-[^7]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^8]: https://github.com/containers/storage/blob/73af2c64286e8cf23e3dada7b6115df8b7a3a391/drivers/overlay/overlay.go#L373-L375 たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^8]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^9]、`/usr/share/containers/storage.conf` を編集する必要があります
 
 の2点に注意してください。
 
-[^8]: PRは出ています https://github.com/containers/storage/pull/1885
+[^9]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -315,6 +317,8 @@ Podmanでcomposefsを使用するためには、メディアタイプが `applic
 }
 ...
 ```
+
+どうでもいい細かい話ですが... composefsはファイル単位の重複排除の機能を持ちますが(オブジェクトストアを共有した場合)、Podmanからcomposefsを使う場合、今の実装ではレイヤーごとにerofsのメタデータイメージとオブジェクトストアを作ります。つまり、重複排除の機能としてはcomposefsではなくzstd:chunkedの仕組みを使います。
 
 ## コンテナの実行
 
@@ -366,9 +370,9 @@ lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c
 ::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
 ```
 
-コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています[^9]。そのうちの一つを覗いてみましょう。
+コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています[^10]。そのうちの一つを覗いてみましょう。
 
-[^9]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
+[^10]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
 
 erofsのイメージを見ると、拡張属性 `trusted.overlay.redirect` にオブジェクトストアのパスが書かれています。
 
@@ -535,12 +539,12 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^10]
-- overlayfsでfs-verityのサポート[^11]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^11]
+- overlayfsでfs-verityのサポート[^12]
 があります。
 
-[^10]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^11]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^11]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^12]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
