@@ -5,6 +5,10 @@ type: "tech" # tech: 技術記事 / idea: アイデア
 topics: []
 published: false
 ---
+RHIVOS fs-verity
+bootcの作文
+podman-bootc
+
 # はじめに
 
 本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
@@ -19,7 +23,7 @@ https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。
 
-なんでOpenShiftとは関係ないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
+なんでOpenShiftとは直接関係のないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
 
 [^2]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
 
@@ -45,20 +49,47 @@ composefsは、erofs、overlayfs、fs-verityといったカーネルの機能を
 
 という動きになります。ファイルのメタデータとデータを別のファイルシステムに持ち、overlayfsで組み合わせる、という機能は、composefsのために開発されました。この辺りの細かい話は後述します。
 
-composefsはfs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verity自体はファイルのデータ(中身)にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、メタデータを含めたファイルシステム全体の改ざん検知ができます。
-
-ファイルデータのオブジェクトストアと、ファイルツリー/メタデータのイメージを別に持つことで、
+composefsは、ファイルデータのオブジェクトストアと、ファイルツリー/メタデータのイメージを別に持つことで、
 
 - 複数のファイルシステムで同じ中身を持つファイルがある場合は、ファイルデータをcontent-addressedなオブジェクトストアに1個持つだけで済む (ファイル単位の重複排除)
 - ひとつのオブジェクトファイルを、異なるメタデータを持つファイルとして複数のファイルシステムに見せることができる
 
-という利点があります。
+という特徴を持ちます。
 
-余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^3]。
+composefsはfs-verityを使ってファイルシステム全体の改ざん検知ができます。fs-verityはLinuxカーネルが持つファイル単位の改ざん検知を行う仕組みです。fs-verityでは、改ざんを検知するとファイルの読み込みが失敗します (具体的にはread(2)時はEIOを、mmap(2)時はSIGBUSを返します[^3])。fs-verity自体はファイルのデータ(中身)にしか関与しません。つまりfs-verytyではメタデータの変更は検知できません。しかしcomposefsの場合は、ファイルシステムのメタデータ/ディレクトリツリーをEROFSのイメージとして持つため、このイメージファイルに対してもfs-verityのダイジェストを確認することで、メタデータを含めたファイルシステム全体の改ざん検知ができます。
+
+[^3]: https://docs.kernel.org/filesystems/fsverity.html#accessing-verity-files
+
+fs-verityを使用するには、ファイルシステムがサポートしている必要があります。Linuxカーネルv6.13-rc2で確認した限りでは、f2ff, ext4, btrfsがfs-verityをサポートしているようです。RHEL系のディストリビューションのデフォルトであるxfsはまだfs-verityをサポートしていませんのでご注意ください[^4]。
+
+[^4]: xfsのfs-verityサポートは、まだupstreamで議論中です。https://lore.kernel.org/all/20240612190644.GA3271526@frogsfrogsfrogs/
+
+```
+$ grep -lr FS_IOC_ENABLE_VERITY fs
+fs/f2fs/file.c
+fs/f2fs/verity.c
+fs/btrfs/ioctl.c
+fs/ext4/inode.c
+fs/ext4/verity.c
+fs/ext4/ioctl.c
+fs/fuse/ioctl.c
+fs/verity/enable.c
+fs/verity/signature.c
+```
+
+現在利用できるコンテナイメージの署名検証は仕組みは、イメージをダウンロードしたときやコンテナ実行時のタイミングで検証するものがほとんどだと思います。composefsの改ざん検知の仕組みは、コンテナ実行中にファイルを改ざんされたとしても検知することができます(fs-verity有効時はファイルが改ざんされるとread自体が失敗するため)。
+
+ファイルの完全性(integrity)をチェックできることは、高い信頼性を要するシステムでは必須の機能です。Red HatはRHIVOSという車載Linuxディストリビューションを開発していますが、その中ではOSTreeベースのファイルシステムを使っています[^5]。ここにcomposefsをかぶせることで、runtime integrityを確保することができます。UKI (Unified Kernel Image)を使ってSecure Bootをし、fs-verityを有効にしたcomposefs+ostreeのファイルシステムで起動することで、ブートローダー、カーネル、initramfs、カーネル起動時のコマンドライン、ファイルシステムの全てをセキュアな状態にすることができます(詳細は以下の講演をご参照ください)。
+
+https://cfp.all-systems-go.io/all-systems-go-2024/talk/HVEZQQ/
+
+[^5]: https://www.youtube.com/watch?v=zx-W2pAq1LE&t=55s
+
+余談ですが、SteamOSのOSアップデートの仕組みで使っている[RAUC](https://github.com/rauc/rauc/pull/1500)というOSSプロジェクトでも、composefsを使うようになるようです[^5]。
 
 https://cfp.all-systems-go.io/all-systems-go-2024/talk/3DKX9V/
 
-[^3]: https://github.com/rauc/rauc/pull/1500
+[^5]: https://github.com/rauc/rauc/pull/1500
 
 # 使い方
 
@@ -232,7 +263,14 @@ $ cat objects/85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a
 foo.txt____________________________________________________________
 ```
 
-ちなみに、ファイルサイズが64バイト未満の場合は、オブジェクトストアにリダイレクトせず、erofsのイメージ内に直接ファイルデータを埋め込みます。上記の例で、オブジェクトストア内にファイルが2個しかなく、erofsイメージ内のtestdataの拡張属性 `trusted.overlay.redirect` が設定されていなかったのはそのためです。
+ちなみにオブジェクトストアのファイル名となるSHA256ハッシュ値(例えばfoo.txtのデータである `85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a`)は、`fsverity digest` の値です (`sha256sum` ではありません)。
+
+```
+$ fsverity digest /mnt/composefs/foo.txt
+sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/composefs/foo.txt
+```
+
+ファイルサイズが64バイト未満の場合は、オブジェクトストアにリダイレクトせず、erofsのイメージ内に直接ファイルデータを埋め込みます。上記の例で、オブジェクトストア内にファイルが2個しかなく、erofsイメージ内のtestdataの拡張属性 `trusted.overlay.redirect` が設定されていなかったのはそのためです。
 
 まとめると、composefsを作ると
 
@@ -246,20 +284,20 @@ foo.txt____________________________________________________________
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^4]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^6]。rootfulで実行する必要があります。
 
-[^4]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^6]: たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^5]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^7]、`/usr/share/containers/storage.conf` を編集する必要があります
 
 の2点に注意してください。
 
-[^5]: PRは出ています https://github.com/containers/storage/pull/1885
+[^7]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -641,12 +679,12 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^6]
-- overlayfsでfs-verityのサポート[^7]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^8]
+- overlayfsでfs-verityのサポート[^9]
 があります。
 
-[^6]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^7]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^8]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^9]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
