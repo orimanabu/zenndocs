@@ -7,7 +7,7 @@ published: true
 ---
 # はじめに
 
-本記事は、OpenShift Advent Calendar 2024の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
+本記事は、[OpenShift Advent Calendar 2024](https://qiita.com/advent-calendar/2024/openshift)の12/11のエントリーで、[composefs](https://github.com/containers/composefs)というコンテナ環境向けのファイルシステムを紹介します。
 
 composefsは現在のところ、コンテナストレージおよび[OSTree](https://ostreedev.github.io/ostree/)ベースのOSイメージのリポジトリとしてのユースケースが考えられています。OSTreeを使ったLinuxディストリビューションとしては、[Fedora CoreOS](https://fedoraproject.org/coreos/)や[Fedora Atomic Desktop](https://fedoraproject.org/atomic-desktops/)、[Universal Blue](https://universal-blue.org/)プロジェクトの[派生ディストリビューション](https://universal-blue.org/#images)、[bootc](https://containers.github.io/bootc/)を使ったブータブルコンテナの環境、等が挙げられます[^1]。
 
@@ -17,9 +17,9 @@ https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 [^1]: CoreOS、Atomic Desktop、bootcの違いについては、こちらをご参照ください: https://docs.fedoraproject.org/en-US/bootc/linux-desktops/ https://docs.fedoraproject.org/en-US/bootc/fedora-coreos/
 
-先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。これらについてもCNCFのプロジェクトとして、より広いコミュニティに使ってほしい、という気持ちではないかと想像します。
+先日のKubeCon NAで、[Podmanをはじめとするコンテナ関連ツール群をCNCFに寄贈する旨の発表](https://www.redhat.com/en/blog/red-hat-contribute-comprehensive-container-tools-collection-cloud-native-computing-foundation)がありましたが、その中にcomposefsとbootcも含まれています。これらのツールについてもCNCFのプロジェクトとして、より広いコミュニティに使ってほしい、という気持ちが込められているのではないかと想像します。
 
-なんでOpenShiftとは直接関係のないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われています。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
+なんでOpenShiftとは直接関係のないcomposefsをAdvent Calendarのネタにしているかといいますと... OpenShiftのノードは「RHEL CoreOS」というLinuxディストリビューションを使っているのですが、そのアップストリームであるFedora CoreOSでは、すでにcomposefsが使われているからです。というわけで、それほど遠くない将来、OpenShiftに入ってくる(かもしれない)機能[^2]ということで、ご容赦ください... 
 
 [^2]: 外から見えるJIRAチケットありました https://issues.redhat.com/browse/COS-2963
 
@@ -27,7 +27,7 @@ https://zenn.dev/orimanabu/articles/try-rhel-image-mode
 
 composefsは、いくつかの特徴を持つ新しいファイルシステムです。
 
-GitHubのREADMEには
+GitHubリポジトリのREADMEには
 
 > "The reliability of disk images, the flexibility of files"
 
@@ -41,7 +41,7 @@ composefsは、erofs、overlayfs、fs-verityといったカーネルの機能を
 
 - 通常のext4やxfsといったファイルシステム上にオブジェクトストアを作り、そこにSHA256のハッシュ値をファイル名とするファイルコンテンツを配置する
 - ファイルシステムのファイルツリーやメタデータは、erofsのイメージファイルに入れる
-- erofsのイメージファイルとオブジェクトストアをoverlayfsで重ね合わせてマウントする
+- erofsのイメージファイルをmetadata only layer、オブジェクトストアをdata only layerとして、overlayfsで重ね合わせてマウントする
 
 という動きになります。ファイルのメタデータとデータを別のファイルシステムに持ち、overlayfsで組み合わせる、という機能は、composefsのために開発されました。
 
@@ -110,7 +110,7 @@ $ python -c 'print("bar.txt" + "_" * 60)' > rootfs/subdir/bar.txt
 $ echo 'abcde' > rootfs/testfile
 ```
 
-mkcomposefsコマンドを実行します。`--digest-store` オプションでオブジェクトストアを指定し、コマンドライン引数でcomposefsの元となるディレクトリと、メタデータを入れるイメージファイル名を指定します。
+mkcomposefsコマンドを実行します。`--digest-store` オプションでオブジェクトストアを指定し、コマンドライン引数でcomposefsの元となるディレクトリと、メタデータを入れるerofsイメージファイル名を指定します。
 
 ```
 $ mkcomposefs --digest-store=objects rootfs example.cfs
@@ -290,18 +290,35 @@ Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされ
 
 storage.confの `[storage.options.overlay]` セクションで `use_composefs = "true"` を設定します。
 
+また、composefsはzstd:chunksと一緒に使うことが前提になっているので、zstd:chunksの設定もしておきます。
+具体的には、`[storage.options]` セクションで
+
+```
+pull_options = {enable_partial_images = "true", use_hard_links = "true", ostree_repos=""}
+```
+を設定します。
+
+composefsはファイル単位の重複排除の機能を持ちますが(オブジェクトストアを共有した場合)、Podmanからcomposefsを使う場合、今の実装ではレイヤーごとにerofsのメタデータイメージとオブジェクトストアを作ります。つまり、重複排除の機能としてはcomposefsではなくzstd:chunkedの仕組みを使います。
+
+composefsとzstd:chunksを組み合わせて使う場合は、ストレージおよびメモリの使用量を効率化するため、zstd:chunksの重複排除にハードリンクを使う (`use_hard_links = "true"`) のがお薦めです。
+zstd:chunksでハードリンクを使う場合のいくつか注意点[^9]は、copmosefsと一緒に使う場合は気にしなくても大丈夫です (メタデータがerofsイメージに保存されるため)。
+
+[^9]: 詳細は https://zenn.dev/orimanabu/articles/zstd-chunked-intro をご参照ください。
+
+設定の際は、
+
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^9]、`/usr/share/containers/storage.conf` を編集する必要があります
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^10]、`/usr/share/containers/storage.conf` を `/etc/containers/storage.conf` にコピーしてそれを編集します。
 
 の2点に注意してください。
 
-[^9]: PRは出ています https://github.com/containers/storage/pull/1885
+[^10]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
 ## コンテナイメージ
 
-Podmanでcomposefsを使用するためには、メディアタイプが `application/vnd.oci.image.layer.v1.tar+zstd` のコンテナイメージを使う必要があります。おそらく世の中にあるベースイメージで使うコンテナイメージでzstdになっているものはほとんどないと思われますが、今のPodmanはデフォルトでzstd:chunkedを使う設定になっていますので、適当に手元でDockerfileを書いてbuild & pushすると、zstdのコンテナイメージとしてレジストリにpushします。以下の例では `quay.io/manabu.ori/myhttpd` を使用します。このイメージはzstdで圧縮したものになっています。
+Podmanでcomposefsを使用するためには、メディアタイプが `application/vnd.oci.image.layer.v1.tar+zstd` のコンテナイメージを使う必要があります。Podmanでコンテナイメージをビルドして、`podman push` 時に `--compression-format=zstd:chunks` オプションをつけると、zstd:chunksフォーマットのコンテナイメージをpushできます。また、storage.confで `` の設定をしておくと、通常のtar+gzipフォーマットのコンテナイメージを自動的にzstd:chunksフォーマットに変換してくれます (時間がかかるので設定する際はご注意ください)。以下の例では `quay.io/manabu.ori/myhttpd` を使用します。このイメージはzstdで圧縮したものになっています。
 
 ```
 # skopeo inspect docker://quay.io/manabu.ori/myhttpd | jq '.LayersData[]'
@@ -318,15 +335,13 @@ Podmanでcomposefsを使用するためには、メディアタイプが `applic
 ...
 ```
 
-どうでもいい細かい話ですが... composefsはファイル単位の重複排除の機能を持ちますが(オブジェクトストアを共有した場合)、Podmanからcomposefsを使う場合、今の実装ではレイヤーごとにerofsのメタデータイメージとオブジェクトストアを作ります。つまり、重複排除の機能としてはcomposefsではなくzstd:chunkedの仕組みを使います。
-
 ## コンテナの実行
 
 ```
 podman run --name myhttpd --rm -d -p 8080:80 quay.io/manabu.ori/myhttpd
 ```
 
-ループバックマウントの様子を確認します。
+ループバックマウントの様子を確認します。使用しているコンテナイメージは4つのレイヤーからなっているため、ループバックデバイスも4つできています。
 
 ```
 # losetup
@@ -357,7 +372,7 @@ NAME       SIZELIMIT OFFSET AUTOCLEAR RO BACK-FILE                              
 }
 ```
 
-overlayfsマウントのオプションのlowerdirを見やすく整形すると...
+overlayfsマウントのオプションのlowerdirを見やすく整形してみましょう。
 
 ```
 lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c10a5ed0c52e4e659df85438193389/composefs-layers/1
@@ -370,9 +385,9 @@ lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c
 ::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
 ```
 
-コロンが2個連続しているレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストア (content addressed backing filesの置き場) であることを表しています[^10]。そのうちの一つを覗いてみましょう。
+コロンが2個連続している部分(`::`)の右側のレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストアであることを表しています[^11]。そのうちの一つを覗いてみましょう。
 
-[^10]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
+[^11]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
 
 erofsのイメージを見ると、拡張属性 `trusted.overlay.redirect` にオブジェクトストアのパスが書かれています。
 
@@ -409,16 +424,18 @@ trusted.overlay.redirect="/f1/f2463d6c783031a0b34d4c545b4383a1d24a3c6efefc33cc0c
 想定ユースケースその2、OSTreeのバックエンドで使うパターンです。
 
 - bootcでOS領域をコンテナイメージにする
-- Fedora CoreOSの2つ
+- Fedora CoreOS
 
 の2つの場合を見てみます (ほとんど同じです)。
 
 ## bootc
 
 libvirtで仮想マシンを作成します。作業の流れとしては
+
 - `fedora-bootc`というコンテナイメージ(kernel、initramfs、systemd等が入っています)をベースにしたコンテナイメージを作る
 - そのコンテナイメージを元に、`bootc-image-builder` を使ってqcow2の仮想マシンイメージを作成する
 - virt-installで仮想マシンを作成・起動する
+
 という感じです。
 
 細かい手順は下記をご参照ください。
@@ -432,6 +449,8 @@ podman-bootc run --filesystem=xfs quay.io/manabu.ori/fedora-bootc-test:41
 ```
 
 みたいな感じで実行すると、上記の「コンテナイメージからqcow2の仮想マシンイメージを作って仮想マシンを起動してsshログインする」を一気に行うことができます。
+
+sshログインして、/etc/os-releaseを確認します。
 
 ```
 # cat /etc/os-release
@@ -536,15 +555,17 @@ https://lore.kernel.org/lkml/cover.1673623253.git.alexl@redhat.com/
 
 https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 
-最終的に、2023年のLSFMM/BPF Summitを経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
+最終的に、2023年のLSFMM/BPF Summitでのface to faceの議論を経て、composefsはカーネル内の新規のファイルシステムではなく、「メタデータやディレクトリツリーをerofsのイメージとし、ファイルデータをcontent-addressedなオブジェクトファイルとして、それらをoverlayfsで組み合わせる」という方向に方針転換することになりました。
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^11]
-- overlayfsでfs-verityのサポート[^12]
+
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^12]
+- overlayfsでfs-verityのサポートする[^13]
+
 があります。
 
-[^11]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^12]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^12]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^13]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
@@ -558,6 +579,8 @@ https://lwn.net/Articles/933616/
 
 - composefsのリポジトリ
   - https://github.com/containers/composefs
+- FOSDEM2024
+  - [Composefs and containers](https://archive.fosdem.org/2024/schedule/event/fosdem-2024-3250-composefs-and-containers/)
 - Alexander Larsson (composefsの主要開発者の一人、LKMLにパッチを投げた人) のブログ記事
   - [Using Composefs in OSTree](https://blogs.gnome.org/alexl/2022/06/02/using-composefs-in-ostree/)
   - [Composefs state of the union](https://blogs.gnome.org/alexl/2023/07/11/composefs-state-of-the-union/)
