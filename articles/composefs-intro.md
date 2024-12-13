@@ -261,7 +261,9 @@ $ cat objects/85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a
 foo.txt____________________________________________________________
 ```
 
-ちなみにオブジェクトストアのファイル名となるSHA256ハッシュ値(例えばfoo.txtのデータである `85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a`)は、`fsverity digest` の値です (`sha256sum` ではありません)。
+ちなみにオブジェクトストアのファイル名となるSHA256ハッシュ値(例えばfoo.txtのデータである `85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a`)は、`fsverity digest` の値です。fs-verityのハッシュ値は、ファイルを固定サイズのブロックにわけて、各ブロックからSHA256ハッシュ値を計算し、Merkle treeというデータ構造に基づいて全体のハッシュ値を計算します[^8]。
+
+[^8]: Merkle treeを使うと、大きいブロックデバイス/ファイルの一部分の改ざんを確認する際に、全体のハッシュ値を計算しなくてもすむため、特にブロックデバイスの改ざん検知をするdm-verityで有効な手法です。dm-verityでのMerkle treeについては https://www.starlab.io/blog/dm-verity-in-embedded-device-security https://archive.fosdem.org/2023/schedule/event/image_linux_secureboot_dmverity/  をご参照ください
 
 ```
 $ fsverity digest /mnt/composefs/foo.txt
@@ -269,6 +271,46 @@ sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/com
 ```
 
 ファイルサイズが64バイト未満の場合は、オブジェクトストアにリダイレクトせず、erofsのイメージ内に直接ファイルデータを埋め込みます。上記の例で、オブジェクトストア内にファイルが2個しかなく、erofsイメージ内のtestdataの拡張属性 `trusted.overlay.redirect` が設定されていなかったのはそのためです。
+
+fs verityの動きを確認するため、一度アンマウントしてオブジェクトストアのファイルを意図的に変更してみます。
+
+```
+$ sudo umount /mnt/composefs
+$ sed -i -e 's/foo/FOO/' objects/85/d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a
+$ sudo mount -t composefs -o basedir=objects example.cfs /mnt/composefs
+$ cat /mnt/composefs/foo.txt
+FOO.txt____________________________________________________________
+```
+
+マウントオプションに `verity=on` をつけると、ファイルにアクセスした際に改ざん検知を行います。foo.txtの中身を変えているので、catするとEIOが返ります。
+
+```
+$ sudo umount /mnt/composefs
+$ sudo mount -t composefs -o basedir=objects,verity=on example.cfs /mnt/composefs
+$ cat /mnt/composefs/foo.txt
+cat: /mnt/composefs/foo.txt: Input/output error
+```
+
+ファイルシステム全体で改ざん検知をするには、erofsイメージをfsverity enableします。後のテストのために、ハッシュ値を確認しておきます。
+
+```
+$ fsverity enable example.cfs
+$ fsverity measure example.cfs
+sha256:0fe266a6f4c632c168b70267bd7fc4634be62c46d5730641782184b18e7ce4e6 example.cfs
+```
+
+マウントオプションに `digest=ハッシュ値` をつけると、erofsイメージファイルの改ざん検知も行います。
+
+```
+$ sudo mount -t composefs -o basedir=objects,verity=on,digest=0fe266a6f4c632c168b70267bd7fc4634be62c46d5730641782184b18e7ce4e6 example.cfs /mnt/composefs
+```
+
+テストのため、fsverity enableしたexample.cfsを消してもう一度作成し、同じマウントコマンドを実行してみます。作り直したexample.cfsを使って(fsverity enableせずに)同じマウントオプションでマウントしようとすると、ハッシュ値の確認ができないためマウント自体が失敗します。
+
+```
+$ sudo mount -t composefs -o basedir=objects,verity=on,digest=0fe266a6f4c632c168b70267bd7fc4634be62c46d5730641782184b18e7ce4e6 example.cfs /mnt/composefs
+mount.composefs: Failed to mount composefs /data/composefs/example.cfs: Image has no fs-verity
+```
 
 まとめると、composefsを作ると
 
@@ -282,9 +324,9 @@ sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/com
 
 想定ユースケースその1、コンテナストレージです。
 
-Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^8]。rootfulで実行する必要があります。
+Podmanでcomposefsを使う場合、現時点ではrootlessはサポートされません[^9]。rootfulで実行する必要があります。
 
-[^8]: https://github.com/containers/storage/blob/73af2c64286e8cf23e3dada7b6115df8b7a3a391/drivers/overlay/overlay.go#L373-L375 たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
+[^9]: https://github.com/containers/storage/blob/73af2c64286e8cf23e3dada7b6115df8b7a3a391/drivers/overlay/overlay.go#L373-L375 たぶん問題はerofsのイメージをループバックマウントしているところだと思われます。ループバックマウントってnamespace対応していないとか、root権限が必要とか、いろいろとrootlessに厳しい状況なので...
 
 ## 準備
 
@@ -301,18 +343,18 @@ pull_options = {enable_partial_images = "true", use_hard_links = "true", ostree_
 composefsはファイル単位の重複排除の機能を持ちますが(オブジェクトストアを共有した場合)、Podmanからcomposefsを使う場合、今の実装ではレイヤーごとにerofsのメタデータイメージとオブジェクトストアを作ります。つまり、重複排除の機能としてはcomposefsではなくzstd:chunkedの仕組みを使います。
 
 composefsとzstd:chunksを組み合わせて使う場合は、ストレージおよびメモリの使用量を効率化するため、zstd:chunksの重複排除にハードリンクを使う (`use_hard_links = "true"`) のがお薦めです。
-zstd:chunksでハードリンクを使う場合のいくつか注意点[^9]は、copmosefsと一緒に使う場合は気にしなくても大丈夫です (メタデータがerofsイメージに保存されるため)。
+zstd:chunksでハードリンクを使う場合のいくつか注意点[^10]は、copmosefsと一緒に使う場合は気にしなくても大丈夫です (メタデータがerofsイメージに保存されるため)。
 
-[^9]: 詳細は https://zenn.dev/orimanabu/articles/zstd-chunked-intro をご参照ください。
+[^10]: 詳細は https://zenn.dev/orimanabu/articles/zstd-chunked-intro をご参照ください。
 
 設定の際は、
 
 - 設定値は `"true"` (文字列) です
-- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^10]、`/usr/share/containers/storage.conf` を `/etc/containers/storage.conf` にコピーしてそれを編集します。
+- 現時点では、storage.confに関しては `/etc/containers/storage.conf.d` を使った設定はサポートされていないので[^11]、`/usr/share/containers/storage.conf` を `/etc/containers/storage.conf` にコピーしてそれを編集します。
 
 の2点に注意してください。
 
-[^10]: PRは出ています https://github.com/containers/storage/pull/1885
+[^11]: PRは出ています https://github.com/containers/storage/pull/1885
 
 storage.confを編集したら、`sudo podman system reset` を実行しておきます。
 
@@ -385,9 +427,16 @@ lowerdir=/var/lib/containers/storage/overlay/335b77ce2a77a0fcd238625f641490ecb6c
 ::/var/lib/containers/storage/overlay/00753547945b10ec7a54f62b5e1b59bb440692f608554defc4245efcd46d7987/diff,
 ```
 
-コロンが2個連続している部分(`::`)の右側のレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストアであることを表しています[^11]。そのうちの一つを覗いてみましょう。
+コロンが2個連続している部分(`::`)の右側のレイヤーが data only lower layers で、この中のファイルはcomposefsにおけるオブジェクトストアであることを表しています[^12]。
 
-[^11]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
+composefsを使用しない場合、rootful使用時のコンテナストレージのディレクトリレイアウトは、`/var/lib/containers/storage/overlay/<ハッシュ値>diff` 以下にコンテナイメージのtarballを展開します。一方、composefsを使用する場合は、
+
+- `/var/lib/containers/storage/overlay/<ハッシュ値>composefs-data/composefs.blob` : erofsのイメージファイル
+- `/var/lib/containers/storage/overlay/<ハッシュ値>diff/` : オブジェクトストア
+
+のようになります。今使っているコンテナイメージは4つのレイヤーからなりますが、そのうちの一つを覗いてみましょう。
+
+[^12]: https://docs.kernel.org/filesystems/overlayfs.html#data-only-lower-layers
 
 erofsのイメージを見ると、拡張属性 `trusted.overlay.redirect` にオブジェクトストアのパスが書かれています。
 
@@ -559,13 +608,13 @@ https://lore.kernel.org/lkml/cover.1674227308.git.alexl@redhat.com/
 
 その後、composefsを実現するためにいくつかの機能がoverlayfsに追加されました。代表的なものとしては
 
-- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^12]
-- overlayfsでfs-verityのサポートする[^13]
+- overlayfsでmetadata only layerとdata only lower layerを持てるようにする[^13]
+- overlayfsでfs-verityのサポートする[^14]
 
 があります。
 
-[^12]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
-[^13]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
+[^13]: https://lore.kernel.org/all/20230427130539.2798797-1-amir73il@gmail.com/
+[^14]: https://lore.kernel.org/linux-unionfs/cover.1687345663.git.alexl@redhat.com/
 
 議論の大まかな流れは、LWNの以下の記事を順に読むとわかりやすいかもしれません。
 
