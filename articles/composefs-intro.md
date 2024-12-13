@@ -272,7 +272,7 @@ sha256:85d600d462f5c3738b55c3ebf570c31263353dc6aa35448c6a8f9aa519429c8a /mnt/com
 
 ファイルサイズが64バイト未満の場合は、オブジェクトストアにリダイレクトせず、erofsのイメージ内に直接ファイルデータを埋め込みます。上記の例で、オブジェクトストア内にファイルが2個しかなく、erofsイメージ内のtestdataの拡張属性 `trusted.overlay.redirect` が設定されていなかったのはそのためです。
 
-fs verityの動きを確認するため、一度アンマウントしてオブジェクトストアのファイルを意図的に変更してみます。
+fs-verityの動きを確認するため、一度アンマウントしてオブジェクトストアのファイルを意図的に変更してみます。
 
 ```
 $ sudo umount /mnt/composefs
@@ -291,7 +291,7 @@ $ cat /mnt/composefs/foo.txt
 cat: /mnt/composefs/foo.txt: Input/output error
 ```
 
-ファイルシステム全体で改ざん検知をするには、erofsイメージをfsverity enableします。後のテストのために、ハッシュ値を確認しておきます。
+ファイルシステム全体で改ざん検知をするには、erofsイメージを `fsverity enable` します(`fsverify enable` すると、そのファイルはread onlyになります。計算したmerkle treeのハッシュ値は、ファイルシステムの専用領域(拡張属性だったりデータのどこかだったり)に保存されます)。後のテストのために、ハッシュ値を確認しておきます。
 
 ```
 $ fsverity enable example.cfs
