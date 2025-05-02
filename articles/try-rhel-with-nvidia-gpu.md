@@ -206,7 +206,7 @@ python3 -m venv .venv
 .venv/bin/python3 -m pip install ramalama
 ```
 
-RamaLamaを使ってLlama3のモデルと対話してみます。
+RamaLamaを使って、Llama3のモデルサービングをしてみます。
 
 ``` shell
 $ .venv/bin/ramalama serve --device nvidia.com/gpu=all --port 8080 --name myllm llama3
