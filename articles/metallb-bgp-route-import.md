@@ -29,7 +29,7 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 MetalLB関連のPodは `metallb-system` namespaceで動きます。
 
-```shell
+```shell-sessino
 $ oc -n metallb-system get pod
 NAME                                                   READY   STATUS    RESTARTS   AGE
 controller-79dcd8c4d8-7wb68                            2/2     Running   0          5d23h
@@ -47,7 +47,7 @@ speaker-xvh82                                          2/2     Running   0      
 
 speaker Podの中でfrrが動いていないことを確認します。
 
-```shell
+```shell-session
 $ oc -n metallb-system get pod speaker-7gnk9 -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}'
 speaker
 kube-rbac-proxy
@@ -55,7 +55,7 @@ kube-rbac-proxy
 
 OpenShift v4.20 (もしくはv4.19.14以降) にMetalLB Operatorを入れると、自動的に `openshift-frr-k8s` namespaceができてそこにfrr-k8sのDaemonSetがデプロイされます。
 
-```shell
+```shell-session
 $ oc -n openshift-frr-k8s get pod
 NAME                                     READY   STATUS    RESTARTS       AGE
 frr-k8s-2v6tv                            7/7     Running   25 (22d ago)   28d
@@ -349,7 +349,7 @@ status:
 
 ノード `wk3` のfrrで `show ip bgp` すると下記のようになります。
 
-```shell
+```shell-session
 $ oc -n openshift-frr-k8s exec frr-k8s-vk2jh -c frr -- vtysh -c 'show ip bgp'
 BGP table version is 4, local router ID is 172.18.20.113, vrf id 0
 Default local pref 100, local AS 65801
@@ -370,7 +370,7 @@ Displayed  4 routes and 4 total paths
 
 ノード `wk3` 上で `ip route show` すると、受け取った経路がカーネルのRIBに入っていることがわかります。
 
-```shell
+```shell-session
 [core@wk3 ~]$ ip route show proto bgp
 172.18.30.0/24 nhid 12186 via 172.18.20.1 dev br-ex metric 20
 ```
