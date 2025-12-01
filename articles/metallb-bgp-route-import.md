@@ -27,12 +27,12 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 # セットアップ
 
-具体例を見ていきましょう。まずは、バックエンドとしてfrr-k8sを使うようにMetalLBをセットアップします。Manifest, Kustomize, Helm, Operatorそれぞれのインストール方法でfrr-k8sバックエンドを有効にする方法は[^5]を参照してください。OpenShiftはv4.17以降だとMetalLB Operatorのデフォルト設定がfrr-k8sになっています。公式サイトの説明にfrr-k8sが **Experimental** だと表現されていますが[^6]、OpenShiftだと本番環境でも使われているので、気にせず試してみましょう。
+具体例を見ていきましょう。まずは、バックエンドとしてfrr-k8sを使うようにMetalLBをセットアップします。Manifest, Kustomize, Helm, Operatorそれぞれのインストール方法でfrr-k8sバックエンドを有効にする方法はupstreamのインストールドキュメント[^5]を参照してください。OpenShiftはv4.17以降だとMetalLB Operatorのデフォルト設定がfrr-k8sになっています。公式サイトの説明にfrr-k8sが **Experimental** だと表現されていますが[^6]、OpenShiftだと本番環境でも使われているので、気にせず試してみましょう。
 
 ![](/images/metallb-frr-k8s-experimental.png)
 *公式サイトでのFRR-k8sの説明*
 
-図のような環境で検証します[^7]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは 4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
+図のような環境で検証します[^7]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは v4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
 
 ![](/images/metallb-frr-k8s-poc.png)
 *検証環境のトポロジー*
@@ -81,7 +81,7 @@ frr-k8s-webhook-server-7c886d9d4-khd4r   1/1     Running   214            28d
 
 # 検証
 
-## 検証1: MetalLB + frr-k8sでサービスを公開する (BGP経路はインポートしない)
+## 検証1: MetalLB + frr-k8sでLoadBalancer Serviceを公開する (BGP経路はインポートしない)
 
 まずは、WebサーバのPodとBGPで広告するLoadBalancer Serviceを作成します。
 
@@ -175,22 +175,15 @@ spec:
       node-role.kubernetes.io/worker-virt: ""
 ```
 
-すると、MetalLBのspeakerが各ノード用にカスタム `FRRConfiguration` を生成します。
+ひととおり設定すると、LoadBalancer Serviceに対してExternal IP `172.19.20.181` が払い出されます。
 
-```yaml
-$ oc -n openshift-frr-k8s get frrconfiguration
-NAME          AGE
-metallb-cp0   4h30m
-metallb-cp1   4h30m
-metallb-cp2   4h30m
-metallb-wk0   4h30m
-metallb-wk1   4h30m
-metallb-wk2   4h30m
-metallb-wk3   4h21m
-metallb-wk4   4h30m
+```shell-session
+$ oc get svc
+NAME          TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)        AGE
+hello-lb-l3   LoadBalancer   10.200.173.184   172.19.20.181   80:32240/TCP   6h56m
 ```
 
-ラベル `node-role.kubernetes.io/worker-virt: ""` を設定したノードには、下記のようなFRRConfigurationが生成されます。
+このとき、MetalLBのspeakerが各ノード用にカスタム `FRRConfiguration` を生成します。ラベル `node-role.kubernetes.io/worker-virt: ""` を設定したノードには、下記のようなFRRConfigurationが生成されます。
 
 ```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
@@ -231,7 +224,7 @@ spec:
 
 MetalLBのカスタムリソースBGPPeerやBGPAdvertisementで設定した内容が入っていることがわかります。ここで注目したいのは `spec.bgp.routers[0]` の `toAdvertise` と `toReceive` です。`toAdvertise` にはLoadBalancer ServiceのExternal IPがBGPで広告するprefixとして設定されています。`toRecieve` にはallwedなprefixがないので、外部からは何も経路を受け取らない設定になっていることがわかります。
 
-frrのコンフィグは、frr-k8s Podのfrrコンテナに入ってvtyshして `show running config` してもいいですが、カスタムリソース `FRRNodeState` にも入っています。
+frr-k8sはこのFRRConfigurationを見てfrrのコンフィグを生成します。frrのコンフィグは、frr-k8s Podのfrrコンテナに入ってvtyshして `show running config` してもいいですが、カスタムリソース `FRRNodeState` にも入っています。
 
 ```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
@@ -273,7 +266,7 @@ status:
      exit-address-family
     exit
     !
-    ip prefix-list 172.18.20.1-inpl-ipv4 seq 1 deny any
+    ip prefix-list 172.18.20.1-inpl-ipv4 seq 1 deny any   # ← ここ
     ip prefix-list 172.18.20.1-allowed-ipv4 seq 1 permit 172.19.20.181/32
     !
     ipv6 prefix-list 172.18.20.1-allowed-ipv6 seq 1 deny any
@@ -326,7 +319,7 @@ spec:
             mode: all
 ```
 
-すると、frr-k8sが上記FRRConfigurationとMetalLBが生成するFRRConfigurationをいい感じにマージしたfrrのコンフィグを生成してくれます。カスタムリソースFRRNodeStateでrunning configを見ると、外部から受け取った経路のインポートを許可する設定になっていることがわかります。
+すると、frr-k8sがこのFRRConfigurationと、前述したMetalLBが生成するFRRConfigurationをいい感じにマージしたfrrのコンフィグを生成してくれます[^8]。カスタムリソースFRRNodeStateでrunning configを見ると、外部から受け取った経路のインポートを許可する設定になっていることがわかります。
 
 ```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
@@ -396,3 +389,5 @@ MetalLB + frr-k8sを使っているときに、外部のルータから受け取
 [^5]: https://metallb.io/installation/
 [^6]: https://metallb.io/concepts/bgp/#frr-k8s-mode
 [^7]: 図にはShowNetアイコンを使用させていただきました https://github.com/interop-tokyo-shownet/shownet-icons
+[^8]: FRRConfigurationをマージするときの方針はfrr-k8sのREADMEに概要が載っています https://github.com/metallb/frr-k8s?tab=readme-ov-file#how-multiple-configurations-are-merged-together
+
