@@ -29,7 +29,7 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 MetalLB関連のPodは `metallb-system` namespaceで動きます。
 
-``` shell
+```shell
 $ oc -n metallb-system get pod
 NAME                                                   READY   STATUS    RESTARTS   AGE
 controller-79dcd8c4d8-7wb68                            2/2     Running   0          5d23h
@@ -47,7 +47,7 @@ speaker-xvh82                                          2/2     Running   0      
 
 speaker Podの中でfrrが動いていないことを確認します。
 
-``` shell
+```shell
 $ oc -n metallb-system get pod speaker-7gnk9 -o jsonpath='{range .spec.containers[*]}{.name}{"\n"}{end}'
 speaker
 kube-rbac-proxy
@@ -55,7 +55,7 @@ kube-rbac-proxy
 
 OpenShift v4.20 (もしくはv4.19.14以降) にMetalLB Operatorを入れると、自動的に `openshift-frr-k8s` namespaceができてそこにfrr-k8sのDaemonSetがデプロイされます。
 
-``` shell
+```shell
 $ oc -n openshift-frr-k8s get pod
 NAME                                     READY   STATUS    RESTARTS       AGE
 frr-k8s-2v6tv                            7/7     Running   25 (22d ago)   28d
@@ -95,7 +95,7 @@ spec:
   type: LoadBalancer
 ```
 
-``` yaml
+```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -121,7 +121,7 @@ spec:
 
 次に、いつものようにIPAddressPool、BGPPeer、BGPAdvertisementといったMetalLBカスタムリソースを設定します。ここでは、ラベル `node-role.kubernetes.io/worker-virt: ""` を設定しているノード (具体的にはwk3, wk4の2台) のみがBGPピアを張る設定にしています。
 
-``` yaml
+```yaml
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
@@ -133,7 +133,7 @@ spec:
   autoAssign: false
 ```
 
-``` yaml
+```yaml
 apiVersion: metallb.io/v1beta2
 kind: BGPPeer
 metadata:
@@ -149,7 +149,7 @@ spec:
       node-role.kubernetes.io/worker-virt: ""
 ```
 
-``` yaml
+```yaml
 apiVersion: metallb.io/v1beta1
 kind: BGPAdvertisement
 metadata:
@@ -167,7 +167,7 @@ spec:
 
 すると、MetalLBのspeakerが各ノード用にカスタム `FRRConfiguration` を生成します。
 
-``` yaml
+```yaml
 $ oc -n openshift-frr-k8s get frrconfiguration
 NAME          AGE
 metallb-cp0   4h30m
@@ -182,7 +182,7 @@ metallb-wk4   4h30m
 
 ラベル `node-role.kubernetes.io/worker-virt: ""` を設定したノードには、下記のようなFRRConfigurationが生成されます。
 
-``` yaml
+```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
 kind: FRRConfiguration
 metadata:
@@ -223,7 +223,7 @@ MetalLBのカスタムリソースBGPPeerやBGPAdvertisementで設定した内�
 
 frrのコンフィグは、frr-k8s Podのfrrコンテナに入ってvtyshして `show running config` してもいいですが、カスタムリソース `FRRNodeState` にも入っています。
 
-``` yaml
+```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
 kind: FRRNodeState
 metadata:
@@ -298,7 +298,7 @@ status:
 
 外部から受け取った経路をインポートするために、下のFRRConfigurationを適用します。
 
-``` yaml
+```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
 kind: FRRConfiguration
 metadata:
@@ -318,7 +318,7 @@ spec:
 
 すると、frr-k8sが上記FRRConfigurationとMetalLBが生成するFRRConfigurationをいい感じにマージしたfrrのコンフィグを生成してくれます。カスタムリソースFRRNodeStateでrunning configを見ると、外部から受け取った経路のインポートを許可する設定になっていることがわかります。
 
-``` yaml
+```yaml
 apiVersion: frrk8s.metallb.io/v1beta1
 kind: FRRNodeState
 ...
@@ -349,7 +349,7 @@ status:
 
 ノード `wk3` のfrrで `show ip bgp` すると下記のようになります。
 
-``` shell
+```shell
 $ oc -n openshift-frr-k8s exec frr-k8s-vk2jh -c frr -- vtysh -c 'show ip bgp'
 BGP table version is 4, local router ID is 172.18.20.113, vrf id 0
 Default local pref 100, local AS 65801
@@ -370,7 +370,7 @@ Displayed  4 routes and 4 total paths
 
 ノード `wk3` 上で `ip route show` すると、受け取った経路がカーネルのRIBに入っていることがわかります。
 
-``` shell
+```shell
 [core@wk3 ~]$ ip route show proto bgp
 172.18.30.0/24 nhid 12186 via 172.18.20.1 dev br-ex metric 20
 ```
