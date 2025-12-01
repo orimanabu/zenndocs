@@ -27,13 +27,13 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 具体例を見ていきましょう。まずは、バックエンドとしてfrr-k8sを使うようにMetalLBをセットアップします。Manifest, Kustomize, Helm, Operatorそれぞれのインストール方法でfrr-k8sバックエンドを有効にする方法は[^5]を参照してください。OpenShiftはv4.17以降だとMetalLB Operatorのデフォルト設定がfrr-k8sになっています。公式サイトの説明にfrr-k8sが **Experimental** だと表現されていますが[^6]、OpenShiftだと本番環境でも使われているので、気にせず試してみましょう。
 
+![](/images/metallb-frr-k8s-experimental.png)
+
 図のような環境で検証します[^7]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは 4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
 
 ![](/images/metallb-frr-k8s-poc.png)
 
 MetalLB関連のPodは `metallb-system` namespaceで動きます。
-
-![](/images/metallb-frr-k8s-experimental.png)
 
 ```shell-session
 $ oc -n metallb-system get pod
