@@ -9,11 +9,11 @@ published: true
 # はじめに
 外部のBGPルーターから受け取った経路をMetalLBのBGPスピーカーにインポートする話です。本記事はOpenShift Advent Calendar 2025の1日目のエントリーなのでOpenShiftを対象に書いていますが、他のKubernetesディストリビューションでも同じことができると思います。
 
-Kubernetesの `type: LoadBalancer` のService(以下ロードバランサーService)は、クラウドインフラのロードバランサーをAPIで作成する機能と連携して、クラスター外部からL4ロードバランサー経由でクラスター上のPodに接続できるようにする機能です。オンプレミスの環境では、そのような機能は用意することが難しいと思いますが (OpenStackがあればいいのですが)、そのような機能がインフラ側にない環境でロードバランサーServiceを使うための仕組みを提供するのがMetalLBです。MetalLBは2つの動作モードがあります。ひとつはL2モードで、1台のノードにロードバランサーServiceのExternal IPを割り当て、External IPのARPリクエストに答えることで外部から接続できるようにします。もうひとつの動作モードがL3モード(BGPモード)で、外部のルーターとBGPピアを張り、External IPのアドレスを/32で広告することで外部から接続できるようにします。本記事では、後者のBGPモードが前提になります。
+Kubernetesの `type: LoadBalancer` のService(以下LoadBalancer Service)は、クラウドインフラのロードバランサーAPIと連携して、クラスター外部からL4ロードバランサー経由でクラスター上のPodに接続できるようにする機能です。オンプレミスの環境では、そのような機能は用意することが難しいと思いますが (OpenStack等のオンプレクラウド基盤があればいいのですが...)、そのような機能がインフラ側にない環境でLoadBalancer Serviceを使うための仕組みを提供するのがMetalLBです。MetalLBは2つの動作モードがあります。ひとつはL2モードで、1台のノードにLoadBalancer ServiceのExternal IPを割り当て、External IPのARPリクエストに答えることで外部から接続できるようにします。もうひとつの動作モードがL3モード(BGPモード)で、外部のルーターとBGPピアを張り、External IPのアドレスを/32で広告することで外部から接続できるようにします。本記事では、後者のBGPモードが前提になります。
 
-MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBGP実装を使っていました(私はその時代を知らないのですが...)。その後、BGPの実装に[FRRouting](https://frrouting.org/)(以下FRR)を使うようになり、DaemonSetで動くspeaker PodのサイドカーコンテナとしてFRRを動かすようになりました。そうなると、FRRが持つリッチななルーティング機能を活用したくなるのが人情というものですが、MetalLBの立ち位置はBGPバックボーンの一員となることではなく、ロードバランサーServiceを広告する "BGP Injector" である、とのことで、受け取った経路をカーネルRIBにインポートしない実装になっていました[^1]。
+MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBGP実装を使っていました(私はその時代を知らないのですが...)。その後、BGPの実装に[FRRouting](https://frrouting.org/)(以下FRR)を使うようになり、DaemonSetで動くspeaker PodのサイドカーコンテナとしてFRRを動かすようになりました。そうなると、FRRが持つリッチなルーティング機能を活用したくなるのが人情というものですが、MetalLBの立ち位置はBGPバックボーンの一員となることではなく、LoadBalancer Serviceを広告する "BGP Injector" である、とのことで、受け取った経路をカーネルRIBにインポートしない実装になっていました[^1]。
 
-具体的には、バックエンドとしてFRRを使う場合、FRRのコンフィグテンプレートは外部から学習した経路をdenyするroute-mapが設定されるようになっています[^2]。ConfigMap `bgpextras` を使ったカスタムルールで上書きする方法は存在しましたが[^2]、正式サポートな機能ではなく[^3]、ドキュメントにも載っていないため(多分)、おそらく使っている人はほとんどいなかったのではないかと思います。
+具体的には、バックエンドとしてFRRを使う場合、FRRのコンフィグテンプレートは外部から学習した経路をdenyするroute-mapが設定されるようになっています。ConfigMap `bgpextras` を使ったカスタムルールで上書きする方法は存在しましたが[^2]、正式サポートな機能ではなく[^3]、ドキュメントにも載っていないため(多分)、おそらく使っている人はほとんどいなかったのではないかと思います。
 
 その後もFRRを有効活用してBGPベースのネットワークでKubernetesを活用したい人たちの情熱は衰えることなく、MetalLBで使うFRRをspeaker Podのサイドカーコンテナから切り出し、MetalLB以外からもFRRのを使えるようにする実装が出てきました[^4]。具体的には、FRRを切り出してFRR-K8sという仕組みをかぶせ、KubernetesのAPI (カスタムリソースFRRConfiguration) 経由でFRRを利用できるようにします。複数のFRRConfigurationがある場合は、FRR-k8sがいい感じにマージしてFRRのコンフィグを生成します。MetalLBのバックエンドがfrr-k8sの場合は、MetalLBのspeakerがカスタムリソースBGPPeerやBGPAdvertisementを元にFRRConfigurationを生成してFRR-k8sに渡します。
 
@@ -23,13 +23,13 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 具体例を見ていきましょう。まずは、バックエンドとしてfrr-k8sを使うようにMetalLBをセットアップします。Manifest, Kustomize, Helm, Operatorそれぞれのインストール方法でfrr-k8sバックエンドを有効にする方法は[^5]を参照してください。OpenShiftはv4.17以降だとMetalLB Operatorのデフォルト設定がfrr-k8sになっています。公式サイトの説明にfrr-k8sが **Experimental** だと表現されていますが[^6]、OpenShiftだと本番環境でも使われているので、気にせず試してみましょう。
 
-図のような環境で検証します[^6]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは 4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
+図のような環境で検証します[^7]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは 4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
 
 ![](/images/metallb-frr-k8s-poc.png)
 
 MetalLB関連のPodは `metallb-system` namespaceで動きます。
 
-```shell-sessino
+```shell-session
 $ oc -n metallb-system get pod
 NAME                                                   READY   STATUS    RESTARTS   AGE
 controller-79dcd8c4d8-7wb68                            2/2     Running   0          5d23h
@@ -384,4 +384,5 @@ MetalLB + frr-k8sを使っているときに、外部のルータから受け取
 [^3]: https://github.com/metallb/metallb/commit/f389862268d13604506c0d571c889f83acfc5ac8
 [^4]: https://www.redhat.com/ja/blog/frr-k8s-bgp-backend-metallb
 [^5]: https://metallb.io/installation/
-[^6]: 図にはShowNetアイコンを使用させていただきました https://github.com/interop-tokyo-shownet/shownet-icons
+[^6]: https://metallb.io/concepts/bgp/#frr-k8s-mode
+[^7]: 図にはShowNetアイコンを使用させていただきました https://github.com/interop-tokyo-shownet/shownet-icons
