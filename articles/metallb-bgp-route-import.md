@@ -75,7 +75,7 @@ frr-k8s-webhook-server-7c886d9d4-khd4r   1/1     Running   214            28d
 
 まずは、WebサーバのPodとBGPで広告するLoadBalancer Serviceを作成します。
 
-``` yaml
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
