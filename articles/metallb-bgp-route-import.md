@@ -1,5 +1,5 @@
 ---
-title: "MetalLBで外部からのBGPの経路をインポートする"
+title: "MetalLBで外部から受け取ったBGPの経路をインポートする"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [MetalLB, FRR, BGP, Kubernetes, OpenShift]
