@@ -15,6 +15,8 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 具体的には、バックエンドとしてFRRを使う場合、FRRのコンフィグテンプレートは外部から学習した経路をdenyするroute-mapが設定されるようになっています。ConfigMap `bgpextras` を使ったカスタムルールで上書きする方法は存在しましたが[^2]、正式サポートな機能ではなく[^3]、ドキュメントにも載っていないため(多分)、おそらく使っている人はほとんどいなかったのではないかと思います。
 
+![](/images/metallb-frr-bgpextras.png)
+
 その後もFRRを有効活用してBGPベースのネットワークでKubernetesを活用したい人たちの情熱は衰えることなく、MetalLBで使うFRRをspeaker Podのサイドカーコンテナから切り出し、MetalLB以外からもFRRのを使えるようにする実装が出てきました[^4]。具体的には、FRRを切り出してFRR-K8sという仕組みをかぶせ、KubernetesのAPI (カスタムリソースFRRConfiguration) 経由でFRRを利用できるようにします。複数のFRRConfigurationがある場合は、FRR-k8sがいい感じにマージしてFRRのコンフィグを生成します。MetalLBのバックエンドがfrr-k8sの場合は、MetalLBのspeakerがカスタムリソースBGPPeerやBGPAdvertisementを元にFRRConfigurationを生成してFRR-k8sに渡します。
 
 ![](/images/metallb-frr-k8s.png)
@@ -24,6 +26,8 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 # セットアップ
 
 具体例を見ていきましょう。まずは、バックエンドとしてfrr-k8sを使うようにMetalLBをセットアップします。Manifest, Kustomize, Helm, Operatorそれぞれのインストール方法でfrr-k8sバックエンドを有効にする方法は[^5]を参照してください。OpenShiftはv4.17以降だとMetalLB Operatorのデフォルト設定がfrr-k8sになっています。公式サイトの説明にfrr-k8sが **Experimental** だと表現されていますが[^6]、OpenShiftだと本番環境でも使われているので、気にせず試してみましょう。
+
+![](/images/metallb-frr-k8s-experimental.png)
 
 図のような環境で検証します[^7]。左下の `r2` というルータの下にOpenShiftのノードがいます。OpenShiftは 4.20.2上にMetalLB Operatorをインストールしました。上述したように、MetalLBのバックエンドはデフォルトでfrr-k8sになります。
 
