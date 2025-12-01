@@ -382,6 +382,10 @@ Displayed  4 routes and 4 total paths
 
 MetalLB + frr-k8sを使っているときに、外部のルータから受け取ったBGP経路をインポートする方法のご紹介でした。
 
+MetalLB + FRR-k8sを使ったBGP周りの機能についてスライドにまとめたので、もしよかったらこちらも見てください。
+
+https://speakerdeck.com/orimanabu/openshiftnobgpsapoto-metallb-plus-frr-k8sbian
+
 [^1]: https://github.com/metallb/metallb/issues/251
 [^2]: https://www.redhat.com/ja/blog/learning-kubernetes-nodes-networking-routes-via-bgp
 [^3]: https://github.com/metallb/metallb/commit/f389862268d13604506c0d571c889f83acfc5ac8
