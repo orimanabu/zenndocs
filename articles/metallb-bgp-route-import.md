@@ -314,9 +314,9 @@ spec:
       neighbors:
       - address: 172.18.20.1
         asn: 65102
-        toReceive:
-          allowed:
-            mode: all
+        toReceive:      # ← ここがミソ
+          allowed:      # ← ここがミソ
+            mode: all   # ← ここがミソ
 ```
 
 すると、frr-k8sがこのFRRConfigurationと、前述したMetalLBが生成するFRRConfigurationをいい感じにマージしたfrrのコンフィグを生成してくれます[^8]。カスタムリソースFRRNodeStateでrunning configを見ると、外部から受け取った経路のインポートを許可する設定になっていることがわかります。
