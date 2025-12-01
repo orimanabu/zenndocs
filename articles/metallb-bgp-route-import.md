@@ -17,6 +17,8 @@ MetalLBのBGPモードは、開発初期段階ではGo言語による独自のBG
 
 その後もFRRを有効活用してBGPベースのネットワークでKubernetesを活用したい人たちの情熱は衰えることなく、MetalLBで使うFRRをspeaker Podのサイドカーコンテナから切り出し、MetalLB以外からもFRRのを使えるようにする実装が出てきました[^4]。具体的には、FRRを切り出してFRR-K8sという仕組みをかぶせ、KubernetesのAPI (カスタムリソースFRRConfiguration) 経由でFRRを利用できるようにします。複数のFRRConfigurationがある場合は、FRR-k8sがいい感じにマージしてFRRのコンフィグを生成します。MetalLBのバックエンドがfrr-k8sの場合は、MetalLBのspeakerがカスタムリソースBGPPeerやBGPAdvertisementを元にFRRConfigurationを生成してFRR-k8sに渡します。
 
+![](/images/metallb-frr-k8s.png)
+
 ここまでが背景です。FRR-k8sの登場によって「複数のFRRConfigurationをマージしてFRRのコンフィグを生成する」ということができることになったのですが、これを応用することでMetalLBで外部から受け取った経路をインポートすることができるようになります。
 
 # セットアップ
