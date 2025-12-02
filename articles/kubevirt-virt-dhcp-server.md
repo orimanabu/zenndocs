@@ -1,5 +1,5 @@
 ---
-title: "OpenShift Virtualizationで誰がDHCPのアドレスを配っているか"
+title: "OpenShift Virtualization(KubeVirt)で誰がDHCPのアドレスを配っているか"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [kubevirt, openshift, kubernetes]
@@ -102,6 +102,8 @@ ingress(dp="cluster_udn_cudn2_ovn_layer2_switch", inport="proj2.cudn2_proj2_virt
     };
 };
 ```
+OVNのロジカルネットワーク上は、ノードローカルのL2ロジカルスイッチ内でDHCPリプライを返していることがわかります。
+
 
 tcpdumpするると、下記のようなDHCPのやり取りが見えます。
 
