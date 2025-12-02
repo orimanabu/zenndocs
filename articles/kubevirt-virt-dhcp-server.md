@@ -2,7 +2,7 @@
 title: "OpenShift Virtualizationで誰がDHCPのアドレスを配っているか"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: []
+topics: [kubevirt, openshift, kubernetes]
 published: false
 ---
 OpenShift Virtualization Advent Calendar 2日目の記事です。
