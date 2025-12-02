@@ -3,7 +3,7 @@ title: "OpenShift Virtualizationで誰がDHCPのアドレスを配っている�
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [kubevirt, openshift, kubernetes]
-published: false
+published: true
 ---
 OpenShift Virtualization Advent Calendar 2日目の記事です。
 
