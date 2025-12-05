@@ -1,5 +1,5 @@
 ---
-title: "OVN-Kubernetesで今後実装されそうな機能(2025年度版)"
+title: "OVN-Kubernetesで今後実装されるかもしれない機能(2025年度版)"
 emoji: "🍺"
 type: "tech" # tech: 技術記事 / idea: アイデア
 topics: [Kubernetes, OpenShift, OVN-Kubernetes]
