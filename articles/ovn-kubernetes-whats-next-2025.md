@@ -7,23 +7,23 @@ published: true
 ---
 # はじめに
 
-OpenShift Advent Calendar 2025の5日目です。OVN-Kubernetesでは、OKEP (OVN-Kubernetes Enhancement Proposal) というドキュメントがあります。KubernetesにおけるKEP (Kubernetes Enhancement Proposal) と同じように、新機能を開発する際は、まずデザインドキュメント的なものをOKEPという形で書き、その上で実際のコードを書きます。本記事では、いくつかの進行中のOKEPを眺めて、今後実装されるかもしれない機能をチラ見してみます。
+OpenShift Advent Calendar 2025の5日目です。OVN-Kubernetesには、[OKEP](https://github.com/ovn-kubernetes/ovn-kubernetes/tree/master/docs/okeps) (OVN-Kubernetes Enhancement Proposal) というドキュメントがあります。Kubernetesにおける[KEP](https://github.com/kubernetes/enhancements/tree/master/keps) (Kubernetes Enhancement Proposal) と同じように、新機能を開発する際はまずデザインドキュメント的なものをOKEPという形で書き、その上で実際のコードを書きます。本記事では、いくつかの進行中のOKEPを眺めて、今後実装されるかもしれない機能をチラ見してみます。
 
-# トラブルシュート用MCPサーバ
+# トラブルシュート用MCPサーバー
 
 OKEPはこれです: OKEP-5494: Model Context Protocol for Troubleshooting OVN-Kubernetes
 
 https://github.com/ovn-kubernetes/ovn-kubernetes/blob/master/docs/okeps/okep-5494-ovn-kubernetes-mcp-server.md
 
-CNIプラグインOVN-Kubernetesのトラブルシュートは、Kubernetes、OVN-Kubernetes、OVN、Open vSwitch、カーネル(特にNetfilter)にまたがる総合格闘技で、とても複雑で難しいことが多いです。関連ツールも多岐にわたり、`kubectl`、`ovn-nbctl`、`ovs-ofctl`、`ip xxx`、`nft`、`tcpdump` 等のツールを使いこなして情報を収集し、分析する必要があります。この課題に対応するためのOVN-KubernetesのMCPサーバを作ろう、というのがこのOKEPです。具体的には、ユーザーからの問い合わせMCPサーバを経由してLLMに送り、LLMがMCPサーバが公開したツールから適切なものを選択して実行を指示し、その出力を分析して根本原因をユーザーに提供することを目標にしています。環境へのアクセスはread onlyであることを保証し、またmust-gatherやsosreport等の資料 (Red Hat製品の情報をまるっと取得するツールの出力) を使ったトラブルシュートのサポートもスコープに入っています。
+CNIプラグインOVN-Kubernetesのトラブルシュートは、Kubernetes、OVN-Kubernetes、OVN、Open vSwitch、カーネル(特にNetfilter)にまたがる総合格闘技で、とても複雑で難しいことが多いです。関連ツールも多岐にわたり、`kubectl`、`ovn-nbctl`、`ovs-ofctl`、`ip`、`nft`、`tcpdump` 等のツールを使いこなして情報を収集し、分析する必要があります。この課題に対応するためのOVN-KubernetesのMCPサーバを作ろう、というのがこのOKEPです。具体的には、ユーザーからの問い合わせをMCPサーバを経由してLLMに送り、LLMはMCPサーバが公開したツールから適切なものを選択して実行を指示し、その出力を分析して根本原因をユーザーに提供することを目標にしています。環境へのアクセスはread onlyであることを保証し、またmust-gatherやsosreport等の資料 (Red Hat製品の情報をまるっと取得するツールの出力) を使ったトラブルシュートのサポートもスコープに入っています。
 
-まだ実装が始まったばかりですが、こちらで開発が進んでいます。
+MCPサーバーのまだ実装が始まったばかりですが、こちらで開発が進んでいます。
 
 https://github.com/ovn-kubernetes/ovn-kubernetes-mcp
 
 # no-overlay
 
-OVN-KubernetesがBGP対応し、デフォルトPodネットワークやUDNをBGPで広告できるようになっています。この場合、North-South通信 (クラスタの外との通信) はNATせず直接外に出ていきますが、East-West通信 (Pod間通信) は従来どおりGeneveでencapしてノードをまたぎます。このOKEPが実装されると、East-West通信でGeneveトンネルを使わず、外部のルータを通すことでパフォーマンスの向上が図れる、とのことです。
+OVN-KubernetesのBGP対応により、デフォルトPodネットワークやUDNがBGPで広告できるようになっています。この場合、North-South通信 (クラスターの外との通信) はNATせず直接外に出ていきますが、East-West通信 (Pod間通信) は従来どおりGeneveでencapしてノードをまたぎます。このOKEPが実装されると、East-West通信でGeneveトンネルを使わず、外部のルータを通すことでパフォーマンスの向上が図れる、とのことです。
 
 https://github.com/ovn-kubernetes/ovn-kubernetes/blob/master/docs/okeps/okep-5259-no-overlay.md
 
@@ -39,7 +39,7 @@ APIとしては、カスタムリソースClusterUserDefinedNetworkを拡張す�
 
 https://github.com/ovn-kubernetes/ovn-kubernetes/blob/master/docs/okeps/okep-5224-connecting-udns/okep-5224-connecting-udns.md
 
-OVN-Kubernetesでは、User Defined Network (UDN) や Cluster User Defined Network (CUDN) により、テナントごとに独自のPodネットワークを作成することができるようになりました。ClusterNetworkConnectのOKEPは、複数のUDN/CUDNを接続したり切断したりできるようにする機能となります。OVNのオーバーレイネットワーク上のネットワークトポロジーにおいて、カスタムリソースClusterNetworkConnectごとに論理ルーターconnect-routerを作成し、UCN/CUDN間を接続する、という仕組みになっています。
+OVN-Kubernetesを使ったKubernetes/OpenShift環境では、User Defined Network (UDN) や Cluster User Defined Network (CUDN) により、テナントごとに独自のPodネットワークを作成することができるようになりました。ClusterNetworkConnectのOKEPは、複数のUDN/CUDNを接続したり切断したりできるようにする機能です。OVNのオーバーレイネットワーク上のネットワークトポロジーにおいて、カスタムリソースClusterNetworkConnectごとに論理ルーターconnect-routerを作成し、UCN/CUDN間を接続する、という仕組みになっています。
 
 # OVS-DPDK関連
 
@@ -65,9 +65,9 @@ PR: https://github.com/ovn-kubernetes/ovn-kubernetes/pull/5089
 
 内容: https://github.com/ovn-kubernetes/ovn-kubernetes/blob/3222346ed79d853634068288ce3685767ee35210/docs/okeps/okep-5088-evpn.md
 
-L2トポロジーのUDNを外部までL2で延伸するのが主なユースケースです。OVNはノード間通信はGeneveでencapしていましたが、EVPNを有効化すると、GeneveではなくVXLANでカプセル化します。つい昨日、ちょうどカスタムリソースEVPN, VTEPの[Draft PR](https://github.com/ovn-kubernetes/ovn-kubernetes/pull/5779)がsubmitされていました
+L2トポロジーのUDNを外部までL2で延伸するのが主なユースケースです。OVNはノード間通信をGeneveでencapしていましたが、EVPNを有効化すると、GeneveではなくVXLANでカプセル化します。つい昨日、ちょうどカスタムリソースEVPN, VTEPの[Draft PR](https://github.com/ovn-kubernetes/ovn-kubernetes/pull/5779)がsubmitされていました
 
-OKEPの最後に「OpenPERouterを使う方法もあったが、いろいろ考えた結果OpenPERouterは使わずOVN-Kubernetes独自にEVPNを実装することにした」と書いてあります。えー
+本OKEPの最後に「OpenPERouterを使う方法もあったが、いろいろ考えた結果OpenPERouterは使わずOVN-Kubernetes独自にEVPNを実装することにした」と書いてあります (ﾅ､ﾅﾝﾀﾞｯﾃｰ)。
 
 OpenPERouterはこれはこれで興味深いプロジェクトなのですが、今回は参考リンクを載せておくにとどめて、気が向いたら改めて記事を書きたいと思います。
 
@@ -77,7 +77,4 @@ OpenPERouterはこれはこれで興味深いプロジェクトなのですが�
 
 # まとめ
 
-いくつかのOKEP (未マージのもの含む) の概要を紹介しました。OVN-Kubernetesは活発に機能追加が継続しているCNIプラグインのひとつです。最近では去年CNCF Sandboxプロジェクトになり、最近はNVIDIAはじめRed Hat以外の方々も積極的に開発に参加し、
-
-
-OVN-Kubernetesは活発に機能追加が継続しているCNIプラグインのひとつです。去年CNCF Sandboxプロジェクトになり、最近はNVIDIAはじめRed Hat以外の方々も積極的に開発に参加しています。ご興味のある方は、ぜひPRやSlackチャネルを眺めてみてください。
+いくつかのOKEP (未マージのもの含む) の概要を紹介しました。OVN-Kubernetesは活発に機能追加が継続しているCNIプラグインのひとつです。去年[CNCF Sandboxプロジェクト](https://www.cncf.io/projects/ovn-kubernetes/)になり、最近はNVIDIAはじめRed Hat以外の方々も積極的に開発に参加しています。ご興味のある方は、ぜひ[PR](https://github.com/ovn-kubernetes/ovn-kubernetes/pulls)やSlackチャネル(workspace: https://cloud-native.slack.com/, channel: #ovn-kubernetes)を眺めてみてください。
